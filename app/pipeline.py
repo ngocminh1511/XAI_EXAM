@@ -116,3 +116,52 @@ def run_pipeline(question: str) -> PhysicsResponse:
         unit_hints=ctx.unit_hints,
         geometry_hints=ctx.geometry_hints,
     )
+    ctx.reasoner_output = reasoner_output
+    if config.debug:
+        print(f"[Step 3] Reasoner: code={'yes' if reasoner_output.python_code else 'no'}")
+
+    # ─── Step 4: Code Sandbox ───
+    sandbox_result = execute_sandbox(
+        reasoner_output.python_code,
+        question=question,
+        premises=premises,
+    )
+    ctx.sandbox_result = sandbox_result
+    if config.debug:
+        status = "SUCCESS" if sandbox_result.success else f"FAILED ({sandbox_result.error})"
+        print(f"[Step 4] Sandbox: {status}")
+
+    # ─── Step 5: Answer Normalizer ───
+    if sandbox_result.success:
+        raw_answer = sandbox_result.answer_value or ""
+        raw_unit = sandbox_result.unit or ""
+    else:
+        raw_answer = reasoner_output.raw_answer or ""
+        raw_unit = reasoner_output.raw_unit or ""
+
+    final_answer, final_unit = normalize_answer(raw_answer, raw_unit)
+    ctx.final_answer = final_answer
+    ctx.final_unit = final_unit
+    if config.debug:
+        print(f"[Step 5] Normalized answer: {ctx.final_answer} {ctx.final_unit}".strip())
+
+    # ─── Step 6: Confidence + Structurer ───
+    answer_type = "numeric"
+    if raw_answer and not any(ch.isdigit() for ch in raw_answer):
+        answer_type = "text"
+    ctx.confidence = compute_confidence(
+        code_success=sandbox_result.success,
+        answer_type=answer_type,
+        rag_score=ctx.rag_top_score,
+        retries_used=sandbox_result.retries_used,
+        code_error=sandbox_result.error,
+    )
+
+    response = structure_response(ctx)
+
+    # ─── Step 7: Cache Write ───
+    _cache_set(question, response)
+    if config.debug:
+        print(f"[Step 7] Done ({time.time() - start_time:.3f}s)")
+
+    return response
