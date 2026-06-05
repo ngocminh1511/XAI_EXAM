@@ -1,0 +1,18 @@
+{
+  // Required (Mandatory)
+  "answer": "B",
+  "explanation": "The voltage across R2 is calculated using ...",
+
+  // Optional (Encouraged)
+  "fol": "∀x (Resistor(x) → HasVoltage(x, V))",
+  "cot": [
+    "Step 1: Identify the circuit topology ...",
+    "Step 2: Apply Kirchhoff's voltage law ...",
+    "Step 3: Solve for the unknown voltage ..."
+  ],
+  "premises": [
+    "Ohm's law: V = IR",
+    "KVL: sum of voltages in a loop = 0"
+  ],
+  "confidence": 0.92
+}
