@@ -1,9 +1,8 @@
 """
-Deterministic geometry hints for electrostatics vector problems.
+DEPRECATED: deterministic geometry hints for electrostatics vector problems.
 
-The LLM is weak at inferring triangle geometry from text. This module extracts
-common patterns and produces short hints that are injected into the reasoner
-prompt before code generation.
+This module is retained for reference only. The active pipeline uses
+`app.hints.hint_coulomb_force_LD` through `app.hints.get_topic_hints`.
 """
 import math
 import re

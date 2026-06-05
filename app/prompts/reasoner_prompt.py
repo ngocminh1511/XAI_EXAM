@@ -14,12 +14,12 @@ CRITICAL RULES:
 5. If the problem is qualitative or lacks enough numeric data, set answer to a descriptive string and unit to "".
 6. Do NOT invent numerical values, distances, angles, dielectric constants, or placeholder values.
 7. Ignore retrieved premises whose use-case does not match the question.
-8. If the question gives a numerical value, use it explicitly in the Python code after SI conversion.
+8. If the problem gives a numerical value, use it explicitly in the Python code after SI conversion.
 9. Prefer a correct, minimal computation over a long explanation.
 10. The [ANSWER] line must exactly match the Python variables `answer` and `unit`.
 11. Use constants from the retrieved premises; for Coulomb problems use k = 9e9 unless the problem states otherwise.
 12. Name variables in your Python code using simple standard symbols (e.g. C, U, L, I, q1, r) instead of suffixing them with units (like C_muF). This avoids incorrect double-conversions when applying formulas.
-13. Never do double conversions. If you already converted a input value to SI (e.g. C = 20e-6), do not divide or multiply it again inside the formula. Use it directly as the standard SI symbol.
+13. Never do double conversions. If you already converted an input value to SI (e.g. C = 20e-6), do not divide or multiply it again inside the formula. Use it directly as the standard SI symbol.
 
 You MUST follow this EXACT output format:
 
@@ -47,6 +47,7 @@ def build_reasoner_prompt(
     premises: list[str],
     topic: str = "general",
     question_type: str = "quantitative",
+    unit_hints: list[str] | None = None,
     geometry_hints: list[str] | None = None,
 ) -> str:
     """
@@ -57,10 +58,12 @@ def build_reasoner_prompt(
         premises: List of relevant laws/formulas from RAG.
         topic: Coarse topic detected from the question text.
         question_type: "quantitative" or "qualitative".
-        geometry_hints: Deterministic geometry facts extracted from the question.
+        unit_hints: Deterministic unit conversion facts extracted from the question.
+        geometry_hints: Deterministic topic/geometry facts extracted from the question.
     """
     premises_text = "\n".join(f"  - {p}" for p in premises) if premises else "  (none found)"
     topic_instruction = get_topic_prompt(topic)
+    unit_text = "\n".join(f"  - {hint}" for hint in (unit_hints or [])) or "  (none detected)"
     geometry_text = "\n".join(f"  - {hint}" for hint in (geometry_hints or [])) or "  (none detected)"
 
     return f"""Question type: {question_type}
@@ -69,7 +72,10 @@ Detected topic: {topic}
 Topic-specific instructions:
 {topic_instruction}
 
-Deterministic hints (treat as HARD CONSTRAINTS — these are verified facts):
+Unit conversion facts (treat as HARD CONSTRAINTS):
+{unit_text}
+
+Topic/geometry hints (treat as HARD CONSTRAINTS):
 {geometry_text}
 
 Relevant physics laws/formulas:

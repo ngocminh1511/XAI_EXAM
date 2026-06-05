@@ -13,7 +13,7 @@ from app.config import config
 from app.models import PipelineContext, PhysicsResponse
 from app.modules.query_router import route_question
 from app.modules.topic_router import detect_topic
-from app.hints import get_hints
+from app.hints import get_topic_hints, get_unit_hints
 from app.modules.rag import retrieve_premises
 from app.modules.reasoner import reason
 from app.modules.sandbox import execute_sandbox
@@ -77,10 +77,14 @@ def run_pipeline(question: str) -> PhysicsResponse:
     # ─── Step 0: Query Router + Hint Engine ───
     ctx.question_type = route_question(question)
     ctx.topic = detect_topic(question)
-    ctx.geometry_hints = get_hints(question, topic=ctx.topic)
+    ctx.unit_hints = get_unit_hints(question)
+    ctx.geometry_hints = get_topic_hints(question, topic=ctx.topic)
     if config.debug:
         print(f"[Step 0] Route: {ctx.question_type}, topic={ctx.topic}")
-        print(f"         Hints: {len(ctx.geometry_hints)} generated")
+        print(f"         Unit hints: {len(ctx.unit_hints)} generated")
+        for hint in ctx.unit_hints:
+            print(f"         -> {hint[:100]}")
+        print(f"         Topic/geometry hints: {len(ctx.geometry_hints)} generated")
         for hint in ctx.geometry_hints:
             print(f"         → {hint[:100]}")
 
@@ -109,87 +113,6 @@ def run_pipeline(question: str) -> PhysicsResponse:
         premises,
         topic=ctx.topic,
         question_type=ctx.question_type,
+        unit_hints=ctx.unit_hints,
         geometry_hints=ctx.geometry_hints,
     )
-    ctx.reasoner_output = reasoner_output
-    if config.debug:
-        print(f"[Step 3] Reasoner: FOL={bool(reasoner_output.fol)}, "
-              f"Code={bool(reasoner_output.python_code)}, "
-              f"RawAnswer={reasoner_output.raw_answer}")
-
-    # ─── Step 4: Code Sandbox (only for quantitative) ───
-    if ctx.question_type == "quantitative" and reasoner_output.python_code:
-        sandbox_result = execute_sandbox(
-            reasoner_output.python_code,
-            question=question,
-            premises=premises,
-        )
-        ctx.sandbox_result = sandbox_result
-
-        # Self-repair: retry with error feedback (simplified — at pipeline level)
-        retries = 0
-        while not sandbox_result.success and retries < config.sandbox_max_retries:
-            retries += 1
-            if config.debug:
-                print(f"[Step 4] Sandbox FAIL (retry {retries}): {sandbox_result.error}")
-            # In production: re-prompt LLM with error → get new code → retry
-            # For now: break out
-            break
-
-        sandbox_result.retries_used = retries
-        ctx.sandbox_result = sandbox_result
-
-        if config.debug:
-            status = "SUCCESS" if sandbox_result.success else "FAIL"
-            print(f"[Step 4] Sandbox: {status}, answer={sandbox_result.answer_value}, "
-                  f"unit={sandbox_result.unit}")
-    else:
-        if config.debug:
-            print(f"[Step 4] Skipped (qualitative or no code)")
-
-    # ─── Step 5: Answer Normalizer ───
-    if ctx.sandbox_result and ctx.sandbox_result.success:
-        # Use sandbox result (most reliable)
-        raw_ans = ctx.sandbox_result.answer_value or ""
-        raw_unit = ctx.sandbox_result.unit or ""
-        answer_type = "numeric"
-    elif ctx.reasoner_output and ctx.reasoner_output.raw_answer:
-        # Fallback to LLM's own answer
-        raw_ans = ctx.reasoner_output.raw_answer
-        raw_unit = ctx.reasoner_output.raw_unit or ""
-        answer_type = "text" if any(c.isalpha() for c in raw_ans) else "numeric"
-    else:
-        raw_ans = "Unable to compute"
-        raw_unit = ""
-        answer_type = "text"
-
-    ctx.final_answer, ctx.final_unit = normalize_answer(raw_ans, raw_unit)
-    if config.debug:
-        print(f"[Step 5] Normalized: {ctx.final_answer} {ctx.final_unit}")
-
-    # ─── Confidence scoring ───
-    code_success = ctx.sandbox_result.success if ctx.sandbox_result else False
-    code_error = ctx.sandbox_result.error if ctx.sandbox_result else None
-    retries = ctx.sandbox_result.retries_used if ctx.sandbox_result else 0
-
-    ctx.confidence = compute_confidence(
-        code_success=code_success,
-        answer_type=answer_type,
-        rag_score=ctx.rag_top_score,
-        retries_used=retries,
-        code_error=code_error,
-    )
-
-    # ─── Step 6: Structure response ───
-    response = structure_response(ctx)
-    if config.debug:
-        print(f"[Step 6] Response structured (confidence={response.confidence})")
-
-    # ─── Step 7: Cache write ───
-    _cache_set(question, response)
-
-    elapsed = time.time() - start_time
-    if config.debug:
-        print(f"[Done] Total time: {elapsed:.3f}s")
-
-    return response

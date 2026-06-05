@@ -99,6 +99,11 @@ def _detect_right_triangle(question: str, distances: dict) -> List[str]:
         r"\(right[- ]angled\s+at\s+([A-Z])\)",
         question, re.IGNORECASE,
     )
+    if not m:
+        m = re.search(
+            r"triangle\s+([A-Z]{3})\s+is\s+right[- ]angled\s+at\s+([A-Z])",
+            question, re.IGNORECASE,
+        )
     if m:
         vertices, vertex = m.groups()
         vertices = vertices.upper()

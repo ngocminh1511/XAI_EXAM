@@ -29,6 +29,8 @@ def _detect_yes_no_resonance(question: str) -> List[str]:
 
     is_yes_no = any(kw in q for kw in yes_no_kw)
     is_resonance = any(kw in q for kw in resonance_kw)
+    if not is_yes_no and is_resonance:
+        is_yes_no = q.strip().startswith(("is ", "does ", "whether ", "check ", "verify "))
 
     if is_yes_no and is_resonance:
         hints.append(

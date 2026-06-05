@@ -54,6 +54,7 @@ class PipelineContext(BaseModel):
     # Step 2: RAG
     premises: List[str] = Field(default_factory=list)
     rag_top_score: float = 0.0
+    unit_hints: List[str] = Field(default_factory=list)
     geometry_hints: List[str] = Field(default_factory=list)
 
     # Step 3: Reasoner

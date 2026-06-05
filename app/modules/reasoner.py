@@ -134,6 +134,7 @@ def _local_reason(
     premises: list[str],
     topic: str = "general",
     question_type: str = "quantitative",
+    unit_hints: list[str] | None = None,
     geometry_hints: list[str] | None = None,
 ) -> str:
     """Call local vLLM / HuggingFace model. Requires GPU."""
@@ -150,6 +151,7 @@ def _local_reason(
             premises,
             topic=topic,
             question_type=question_type,
+            unit_hints=unit_hints,
             geometry_hints=geometry_hints,
         )
         response = client.chat.completions.create(
@@ -172,6 +174,7 @@ def _api_reason(
     premises: list[str],
     topic: str = "general",
     question_type: str = "quantitative",
+    unit_hints: list[str] | None = None,
     geometry_hints: list[str] | None = None,
 ) -> str:
     """Call external API (OpenAI-compatible)."""
@@ -187,6 +190,7 @@ def _api_reason(
             premises,
             topic=topic,
             question_type=question_type,
+            unit_hints=unit_hints,
             geometry_hints=geometry_hints,
         )
         response = client.chat.completions.create(
@@ -209,6 +213,7 @@ def reason(
     premises: list[str],
     topic: str = "general",
     question_type: str = "quantitative",
+    unit_hints: list[str] | None = None,
     geometry_hints: list[str] | None = None,
 ) -> ReasonerOutput:
     """
@@ -229,6 +234,7 @@ def reason(
             premises,
             topic=topic,
             question_type=question_type,
+            unit_hints=unit_hints,
             geometry_hints=geometry_hints,
         )
     elif config.mode == "api":
@@ -237,6 +243,7 @@ def reason(
             premises,
             topic=topic,
             question_type=question_type,
+            unit_hints=unit_hints,
             geometry_hints=geometry_hints,
         )
     else:

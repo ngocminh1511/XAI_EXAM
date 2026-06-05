@@ -26,6 +26,7 @@ class KBEntry:
     units: str = ""
     constants: str = ""
     notes: str = ""
+    answer_type: str = ""
 
     @property
     def text(self) -> str:
@@ -44,6 +45,8 @@ class KBEntry:
             parts.append(f"Constants: {self.constants}")
         if self.notes:
             parts.append(f"Note: {self.notes}")
+        if self.answer_type:
+            parts.append(f"Answer type: {self.answer_type}")
         return " | ".join(parts)
 
     @property
@@ -54,6 +57,8 @@ class KBEntry:
             premise += f" | Use: {self.description}"
         if self.notes:
             premise += f" | Note: {self.notes}"
+        if self.answer_type:
+            premise += f" | Answer type: {self.answer_type}"
         return premise
 
 
@@ -91,6 +96,7 @@ class InMemoryKB:
                     units=law.get("units", ""),
                     constants=law.get("constant", ""),
                     notes=law.get("note", ""),
+                    answer_type=law.get("answer_type", ""),
                 )
                 self.entries.append(entry)
 
@@ -103,6 +109,7 @@ class InMemoryKB:
                 law_name="SI Unit Conversion Table",
                 formula="; ".join(conversions),
                 description="Always convert to SI units before calculation",
+                answer_type="quantitative",
             ))
 
         # Dynamically load external reference documents
@@ -172,7 +179,8 @@ class InMemoryKB:
                     law_name=f"Excerpt from {filename} (part {idx+1})",
                     formula="",
                     description=chunk,
-                    notes=f"Source: reference_docs/{fpath.name}"
+                    notes=f"Source: reference_docs/{fpath.name}",
+                    answer_type="reference",
                 )
                 self.entries.append(entry)
                 loaded_chunks += 1
@@ -299,6 +307,23 @@ class QdrantKB:
 
         return True
 
+    def _collection_is_ready(self, vector_size: int) -> bool:
+        """Return True when the existing Qdrant collection matches this KB."""
+        collection_name = config.qdrant_collection
+        try:
+            if not self.client.collection_exists(collection_name=collection_name):
+                return False
+
+            info = self.client.get_collection(collection_name=collection_name)
+            points_count = getattr(info, "points_count", 0) or 0
+            vectors_config = info.config.params.vectors
+            existing_size = getattr(vectors_config, "size", None)
+
+            return points_count == len(self.entries) and existing_size == vector_size
+        except Exception as e:
+            print(f"[QdrantKB] Collection readiness check failed ({e}). Rebuilding index.")
+            return False
+
     def load_from_json(self, path: Path) -> int:
         """Load entries, vectorize them, and index in Qdrant."""
         # Initialize InMemoryKB as a parser and fallback mechanism
@@ -315,7 +340,17 @@ class QdrantKB:
 
             # Re-create collection
             collection_name = config.qdrant_collection
-            vector_size = self.model.get_sentence_embedding_dimension()
+            if hasattr(self.model, "get_embedding_dimension"):
+                vector_size = self.model.get_embedding_dimension()
+            else:
+                vector_size = self.model.get_sentence_embedding_dimension()
+
+            if self._collection_is_ready(vector_size):
+                print(
+                    f"[QdrantKB] Reusing existing collection '{collection_name}' "
+                    f"({len(self.entries)} entries)."
+                )
+                return len(self.entries)
             
             print(f"[QdrantKB] Initializing collection '{collection_name}' (dim={vector_size})...")
             self.client.recreate_collection(
@@ -341,6 +376,7 @@ class QdrantKB:
                     "units": entry.units,
                     "constants": entry.constants,
                     "notes": entry.notes,
+                    "answer_type": entry.answer_type,
                 }
                 points.append(
                     PointStruct(
@@ -367,11 +403,20 @@ class QdrantKB:
             collection_name = config.qdrant_collection
             query_vector = self.model.encode(query, show_progress_bar=False).tolist()
 
-            results = self.client.search(
-                collection_name=collection_name,
-                query_vector=query_vector,
-                limit=top_k,
-            )
+            if hasattr(self.client, "query_points"):
+                query_response = self.client.query_points(
+                    collection_name=collection_name,
+                    query=query_vector,
+                    limit=top_k,
+                    with_payload=True,
+                )
+                results = query_response.points
+            else:
+                results = self.client.search(
+                    collection_name=collection_name,
+                    query_vector=query_vector,
+                    limit=top_k,
+                )
 
             matches = []
             for hit in results:
@@ -386,6 +431,7 @@ class QdrantKB:
                     units=payload.get("units", ""),
                     constants=payload.get("constants", ""),
                     notes=payload.get("notes", ""),
+                    answer_type=payload.get("answer_type", ""),
                 )
                 matches.append((entry, hit.score * 10.0))
             return matches
