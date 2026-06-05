@@ -8,7 +8,7 @@ python-dotenv>=1.0.0
 openai>=1.0.0
 
 # Optional: for Qdrant (production RAG)
-# qdrant-client>=1.12.0
+qdrant-client>=1.12.0
 
 # Optional: for Redis caching
 # redis>=5.0.0
@@ -19,7 +19,7 @@ openai>=1.0.0
 # transformers>=4.40.0
 
 # Optional: for embedding (production)
-# sentence-transformers>=3.0.0
+sentence-transformers>=3.0.0
 # FlagEmbedding>=1.2.0
 
 # Optional: for fine-tuning

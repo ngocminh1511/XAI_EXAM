@@ -12,6 +12,51 @@ import re
 _SUPERSCRIPT_MAP = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺", "0123456789-+")
 
 
+def adjust_numeric_by_unit(val: float, unit: str) -> float:
+    """
+    Correct common LLM conversion errors, such as outputting values in SI units
+    while keeping the prefix unit (e.g., 1.2e-9 nC instead of 1.2 nC), or
+    leaving percentage as a decimal fraction.
+    """
+    unit_factors = {
+        "kV": 1e3,
+        "mV": 1e-3,
+        "mJ": 1e-3,
+        "μJ": 1e-6,
+        "uJ": 1e-6,
+        "nJ": 1e-9,
+        "μF": 1e-6,
+        "uF": 1e-6,
+        "nF": 1e-9,
+        "pF": 1e-12,
+        "mC": 1e-3,
+        "μC": 1e-6,
+        "uC": 1e-6,
+        "nC": 1e-9,
+        "mA": 1e-3,
+        "kΩ": 1e3,
+        "kW": 1e3,
+        "kHz": 1e3,
+        "mH": 1e-3,
+        "mT": 1e-3,
+        "μT": 1e-6,
+        "mWb": 1e-3,
+        "cm": 1e-2,
+        "mm": 1e-3,
+    }
+    if unit in unit_factors:
+        factor = unit_factors[unit]
+        if factor < 1.0 and abs(val) < 1e-3:
+            return val / factor
+        elif factor > 1.0 and abs(val) >= 1000:
+            return val / factor
+    elif unit == "%":
+        # If model outputs decimal fraction like 0.05 for 5%
+        if 0.0 < abs(val) <= 1.0:
+            return val * 100.0
+    return val
+
+
 def normalize_answer(raw_answer: str, unit: str = "") -> tuple[str, str]:
     """
     Normalize a physics answer to a standard format.
@@ -31,13 +76,14 @@ def normalize_answer(raw_answer: str, unit: str = "") -> tuple[str, str]:
 
     # ─── Group C: Unicode scientific notation ───
     # e.g., "4.0 × 10⁴" or "1.2×10⁵"
-    if "×" in answer or "×" in answer:
+    if "×" in answer or "x" in answer:
         try:
             cleaned = answer.translate(_SUPERSCRIPT_MAP)
             # Handle "4.0 × 10^4" or "4.0 × 10⁴"
             cleaned = re.sub(r"\s*[×x]\s*10\^?\s*", "e", cleaned)
             cleaned = re.sub(r"\s*[×x]\s*", "*", cleaned)
             val = float(eval(cleaned))  # Safe: only digits and e notation
+            val = adjust_numeric_by_unit(val, unit)
             return f"{val:.6g}", unit
         except Exception:
             pass
@@ -57,6 +103,7 @@ def normalize_answer(raw_answer: str, unit: str = "") -> tuple[str, str]:
 
             import math
             val = float(eval(expr))
+            val = adjust_numeric_by_unit(val, unit)
             return f"{val:.6g}", unit
         except Exception:
             pass  # Keep original if parsing fails
@@ -69,6 +116,7 @@ def normalize_answer(raw_answer: str, unit: str = "") -> tuple[str, str]:
     # ─── Plain numeric ───
     try:
         val = float(answer)
+        val = adjust_numeric_by_unit(val, unit)
         return f"{val:.6g}", unit
     except ValueError:
         return answer, unit

@@ -1,4 +1,0 @@
-qdrant
-.\.venv\Scripts\Activate.ps1
-pip install qdrant-client sentence-transformers
-docker run -p 6333:6333 -p 6334:6334 -v ${PWD}\qdrant_storage:/qdrant/storage qdrant/qdrant

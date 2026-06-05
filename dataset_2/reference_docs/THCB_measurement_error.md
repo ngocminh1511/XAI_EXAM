@@ -1,16 +1,16 @@
 # THCB measurement error
 
-THCB instrument error. In this project use Vietnamese standard Delta_instrument = LCNS, the full least count, not LCNS/2.
-
+THCB instrument error. In this project use Vietnamese standard Delta_instrument = LCNS (the full least count, NOT LCNS/2). Never divide LCNS by 2.
+ 
 THCB repeated measurements. Compute mean x_bar = sum(x_i)/n before random error.
-
+ 
 THCB random error. Use Delta_random = max(abs(x_i - x_bar)), not the average deviation.
-
+ 
 THCB total error. Use Delta_total = max(Delta_random, Delta_instrument) when combining random and instrument error in this dataset.
-
-THCB relative error. delta = Delta/abs(X). Percentage error is delta_percent = delta*100.
-
-THCB final measurement format. Write X = x_bar +- Delta_x with unit. If percent is requested, return percentage value with % unit.
+ 
+THCB relative error. delta = Delta/abs(X). Percentage error is delta_percent = (Delta/abs(X))*100. Always keep it in percent form (e.g. write 5 or 5% if asked, not 0.05).
+ 
+THCB final measurement format. Write X = x_bar +- Delta_x with unit. If percent is requested, return percentage value with % unit (e.g. 5 % or 2.1 %).
 
 THCB sum and difference propagation. For Z = X + Y or X - Y, absolute errors add: Delta_Z = Delta_X + Delta_Y.
 

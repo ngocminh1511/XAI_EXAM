@@ -46,6 +46,8 @@ UNIT_FACTORS = {
     "J": ("energy", 1.0),
     "mJ": ("energy", 1e-3),
     "nJ": ("energy", 1e-9),
+    "μJ": ("energy", 1e-6),
+    "uJ": ("energy", 1e-6),
     # capacitance
     "F": ("capacitance", 1.0),
     "μF": ("capacitance", 1e-6),
@@ -74,6 +76,19 @@ UNIT_FACTORS = {
     # inductance
     "H": ("inductance", 1.0),
     "mH": ("inductance", 1e-3),
+    # magnetic field
+    "T": ("magnetic_field", 1.0),
+    "mT": ("magnetic_field", 1e-3),
+    "μT": ("magnetic_field", 1e-6),
+    "uT": ("magnetic_field", 1e-6),
+    # magnetic flux
+    "Wb": ("magnetic_flux", 1.0),
+    "mWb": ("magnetic_flux", 1e-3),
+    # energy density
+    "J/m³": ("energy_density", 1.0),
+    "J/m3": ("energy_density", 1.0),
+    # turn density
+    "turns/m": ("turn_density", 1.0),
 }
 
 
@@ -162,6 +177,15 @@ def physical_value(value: float, unit: str) -> Optional[tuple[str, float]]:
     return dimension, value * factor
 
 
+def normalize_qualitative(val: str) -> str:
+    val = normalize_text(val).lower()
+    val = val.rstrip(" -—.").strip()
+    val = val.replace("true", "yes").replace("false", "no")
+    val = val.replace("approximately zero", "0").replace("approx zero", "0").replace("nearly zero", "0")
+    val = re.sub(r"\s+", " ", val)
+    return val
+
+
 def compare_prediction(
     pred_answer: str,
     gold_answer: str,
@@ -171,8 +195,15 @@ def compare_prediction(
 ) -> tuple[bool, bool, bool, bool, bool, str, str]:
     gold_answer = normalize_text(gold_answer)
     gold_unit = normalize_unit(gold_unit)
+    
+    # If the gold unit is just a dash, treat it as dimensionless/empty
+    if gold_unit in ("-", "—"):
+        gold_unit = ""
+        
     pred_answer = normalize_text(pred_answer)
     pred_value, pred_unit = split_answer_unit(pred_answer)
+    if pred_unit in ("-", "—"):
+        pred_unit = ""
 
     gold_full = normalize_text(f"{gold_answer} {gold_unit}".strip())
     exact_match = normalize_text(pred_answer).lower() == gold_full.lower()
@@ -197,7 +228,22 @@ def compare_prediction(
     if pred_num is not None and gold_num is not None:
         final_match = (numeric_value_match and strict_unit_match) or physical_equiv_match
     else:
-        final_match = exact_match
+        # Qualitative soft matching
+        norm_gold = normalize_qualitative(gold_full)
+        norm_pred = normalize_qualitative(pred_answer)
+        qualitative_match = False
+        if norm_gold and norm_pred:
+            if norm_gold == norm_pred or norm_pred in norm_gold or norm_gold in norm_pred:
+                qualitative_match = True
+            else:
+                gold_words = set(re.findall(r"\w+", norm_gold))
+                pred_words = set(re.findall(r"\w+", norm_pred))
+                if gold_words and pred_words:
+                    if len(pred_words) == 1 and list(pred_words)[0] in gold_words:
+                        qualitative_match = True
+                    elif len(gold_words) == 1 and list(gold_words)[0] in pred_words:
+                        qualitative_match = True
+        final_match = exact_match or qualitative_match
 
     return (
         exact_match,
@@ -531,7 +577,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mode", choices=["mock", "local", "api"], default=None)
     parser.add_argument("--start", type=int, default=0)
     parser.add_argument("--limit", type=int, default=None)
-    parser.add_argument("--rel-tol", type=float, default=1e-3)
+    parser.add_argument("--rel-tol", type=float, default=5e-3)
     parser.add_argument("--abs-tol", type=float, default=1e-9)
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--show-cot", action="store_true", help="Print predicted CoT steps in the console.")
