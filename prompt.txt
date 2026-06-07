@@ -1,0 +1,48 @@
+Thực hiện đọc toàn bộ dự án của tôi và lên kế hoạch cho công việc sau:
+Tiếp tục cập nhật phase 5 là finetuning trên mô hình lora
+Lên kế hoạch hướng dẫn tôi cách cài đặt.
+Cấu trúc thư mục như thế nào, toàn bộ những gì liên quan
+Lưu ý khi fintetunging card của tôi có 2 máy là rtx 3050 và rtx4050 thì có thể sử dụng cái nào? sử dụng được không?. 
+Thứ 2 nếu không sử dụng được thì lập kế hoạch để connect đến modal.com để thực hiện sử dụng gpu của người ta cho dễ sử dụng
+Phân tích kế hoahj cụ thể, cẩn thận.
+Lên plan rõ ràng trước khi thực hiện
+
+
+Trước mắt đang có 4 chương là CH, LD, NL, TD là tôi chưa chạy với lora hiện giờ, cho tôi câu lệnh để có thể chạy 4 câu này để có thể phân tích rõ hơn là tôi cần điều chỉnh thêm những gì, cs thể là knowlege base hoặc có thể là cho việc finetune lại mô hình.
+
+Tiếp theo hãy kiểm tra lại toàn bộ [Physics_Problems_Text_Only.csv](dataset_2/Physics_Problems_Text_Only.csv) tatas cả các dạng chủ đề. Sau đó kiểm tra trong knowledges base như  @dataset_2/reference_docs/ xem thử nó còn thiếu công thức gì so với file dataset đó, thực hiện so khớp tổng quát nhất quán để không bỏ lỡ một công thức nào
+Sau đó cập nhật các hint để được tối ưu về mặt rag
+Cập nhật kb đầy đủ là bước tạo tiền đề mạnh lại cho quá trình file tune sau này
+
+
+
+Hiện tại tôi đã finetune Lora vơi @directory:finetunning.
+Vấn đề gặp phải hiện giờ là Tại sao sau khi finetune lora xong thì kết quả lại đạt thấp hơn so với model base + rag?
+Thực hiện phân tích các topic trong 
+
+CH
+
+CHLT
+
+DDT
+
+DT
+
+LD
+
+NL
+
+TD
+
+THCB
+ tại sao kết quả lại thấp hơn khi chạy 20 lần so với khi mô hình chưa finetunning, và thời gian lại chạy lâu hơn?
+Giải đáp rõ ràng về hiện tượng này, lên plan đưa ra giải quyết?
+Tiếp theo kiểm tra lại knowledge base, thực hiện so khớp với các topic trong 
+
+Physics_Problems_Text_Only.csv
+và cho tôi biết hiện tại knowledge giữa dataset và kiến thức đang thiếu những gì, lưu ý phân tích kỹ, đưa ra và bổ sung kiến thức tổng quát cho tất cả các trường hợp chứ không phải là hardcode cho dataset, vì nếu làm vậy thì khi thực hiện bài test thì kết quả sẽ không tốt. Thực hiện so khơp với 
+
+hints
+để biết cần bổ sung thêm cho hint những gì?
+Kiểm tra toàn bộ dự án và cho biết tôi đã làm những gì? chưa làm gì ? và cần optimize những gì để có một kết quả chính xác nhất. Hãy sử dụng những phương pháp và kỹ thuật tốt nhất để áp dụng cho bài của tôi.
+Đưa ra các paper làm về những chủ để lên quan, thực hiện phân tích kiến trúc, phương pháp làm của người khác để xem có những gì hay và có thể áp dụng vào bài làm của mình.

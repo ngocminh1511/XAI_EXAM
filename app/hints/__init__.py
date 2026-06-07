@@ -6,6 +6,8 @@ pipeline context so prompt sections can describe them accurately.
 """
 from typing import List
 
+from app.modules.problem_facts import ProblemFacts, analyze_problem
+
 
 def _dedupe(hints: List[str]) -> List[str]:
     """Deduplicate hints while preserving order."""
@@ -19,15 +21,17 @@ def get_unit_hints(question: str) -> List[str]:
     return _dedupe(unit_analyze(question))
 
 
-def get_topic_hints(question: str, topic: str) -> List[str]:
+def get_topic_hints(question: str, topic: str, facts: ProblemFacts | None = None) -> List[str]:
     """Return topic-specific deterministic hints for a routed question."""
     hints: List[str] = []
+    facts = facts or analyze_problem(question)
 
     topic_analyzers = {
         "coulomb_force": "app.hints.hint_coulomb_force_LD",
         "electric_field_zero": "app.hints.hint_coulomb_force_LD",
         "electric_potential": "app.hints.hint_electric_field_DT",
         "capacitor": "app.hints.hint_capacitor_TD",
+        "dc_circuit": "app.hints.hint_dc_circuit",
         "ac_circuit": "app.hints.hint_ac_circuit_CH",
         "magnetism_induction": "app.hints.hint_magnetism_DDT",
         "measurement_error": "app.hints.hint_measurement_error_THCB",
@@ -40,13 +44,28 @@ def get_topic_hints(question: str, topic: str) -> List[str]:
 
         try:
             mod = importlib.import_module(module_name)
-            hints.extend(mod.analyze(question))
+            try:
+                hints.extend(mod.analyze(question, facts=facts))
+            except TypeError:
+                hints.extend(mod.analyze(question))
         except Exception as exc:  # pragma: no cover
             print(f"[Hints] Warning: {module_name} failed: {exc}")
 
     if topic == "ac_circuit":
         q = question.lower()
-        resonance_kw = ["resonance", "cộng hưởng", "cong huong", "is it", "does it", "yes", "no"]
+        resonance_kw = [
+            "resonance",
+            "resonant",
+            "resonate",
+            "cộng hưởng",
+            "cong huong",
+            "is it",
+            "is the",
+            "does it",
+            "will",
+            "yes",
+            "no",
+        ]
         if any(kw in q for kw in resonance_kw):
             from app.hints.hint_ac_resonance_CHLT import analyze as chlt_analyze
 

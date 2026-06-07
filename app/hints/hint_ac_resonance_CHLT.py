@@ -20,17 +20,20 @@ def _detect_yes_no_resonance(question: str) -> List[str]:
     q = question.lower()
 
     yes_no_kw = [
-        "is it", "does it", "is the circuit", "is this",
+        "is it", "does it", "does the circuit", "is the circuit", "is this",
+        "is the frequency", "is the given frequency", "is the operating frequency",
+        "will resonance", "does resonance", "does electrical resonance",
+        "resonate at", "the resonant frequency",
         "whether", "check if", "determine if", "verify",
         "có phải", "có cộng hưởng", "xảy ra cộng hưởng",
     ]
 
-    resonance_kw = ["resonance", "resonant", "cộng hưởng"]
+    resonance_kw = ["resonance", "resonant", "resonate", "cộng hưởng"]
 
     is_yes_no = any(kw in q for kw in yes_no_kw)
     is_resonance = any(kw in q for kw in resonance_kw)
     if not is_yes_no and is_resonance:
-        is_yes_no = q.strip().startswith(("is ", "does ", "whether ", "check ", "verify "))
+        is_yes_no = q.strip().startswith(("is ", "does ", "will ", "whether ", "check ", "verify "))
 
     if is_yes_no and is_resonance:
         hints.append(
@@ -53,7 +56,7 @@ def _detect_resonance_properties(question: str) -> List[str]:
     hints = []
     q = question.lower()
 
-    if any(kw in q for kw in ["resonance", "resonant", "cộng hưởng"]):
+    if any(kw in q for kw in ["resonance", "resonant", "resonate", "cộng hưởng"]):
         hints.append(
             "Resonance condition: X_L = X_C, i.e. 2π·f·L = 1/(2π·f·C). "
             "At resonance: Z_min = R, I_max = U/R, P_max = U²/R, "

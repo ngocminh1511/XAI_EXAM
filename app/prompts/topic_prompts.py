@@ -48,6 +48,16 @@ TOPIC_PROMPTS: dict[str, str] = {
 - IF REMAIN CONNECTED to source: the voltage U remains constant (U = U_initial). Moving plates or inserting dielectric changes C and Q, but NOT U.
 - Do not invent numerical dielectric constants or symbolic placeholder values.""",
 
+    "dc_circuit": """Topic: practical DC circuits, lamps, and resistor branches.
+- Use this mode for lamp/branch/resistor networks with DC voltage, current, resistance, or power.
+- For parallel branches: each branch has the same voltage U, branch current is I_i = U / R_i, and total current is I_total = sum(I_i).
+- Equivalent resistance in parallel: 1/R_eq = 1/R1 + 1/R2 + ... . For two branches, R_eq = R1*R2/(R1+R2).
+- For series resistors: R_eq = R1 + R2 + ... and current is the same through all components.
+- Power is P = U*I = I**2*R = U**2/R. Total power is the sum of branch powers or P_total = U*I_total.
+- If a parallel branch is removed, recompute total current using the remaining branches only.
+- If a branch resistance decreases at fixed voltage, that branch current increases and the lamp usually shines brighter.
+- Return multi-value answers as a descriptive string when the question asks for several currents.""",
+
     "ac_circuit": """Topic: AC/RLC circuit.
 - Convert frequency, capacitance, inductance, resistance to SI units.
 - Use X_L = 2*pi*f*L, X_C = 1/(2*pi*f*C), Z = sqrt(R**2 + (X_L-X_C)**2).
@@ -72,8 +82,10 @@ TOPIC_PROMPTS: dict[str, str] = {
 - Percent error should be formatted as a number, e.g. 5 or 1.2, not 0.05 or 0.012, and the unit should be %.""",
 
     "energy_oscillation": """Topic: LC oscillations and electromagnetic energy.
-- Use capacitor energy W_C = 0.5*C*U**2 and inductor energy W_L = 0.5*L*I**2.
+- Use capacitor/electric-field energy W_C = 0.5*C*U**2 and inductor/magnetic-field energy W_L = 0.5*L*I**2.
 - In ideal LC oscillations, total energy is conserved.
+- To solve inverse questions: U = sqrt(2*W/C), I = sqrt(2*W/L), C = 2*W/U**2, L = 2*W/I**2.
+- Compute in SI units first, then convert the final answer back to the requested output unit such as mJ, μF, H, or A.
 - Use omega = 1/sqrt(L*C), T = 2*pi*sqrt(L*C), and f = 1/T when asked.""",
 
     "general": """Topic: general physics problem.

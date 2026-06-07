@@ -14,6 +14,8 @@ from app.models import PipelineContext, PhysicsResponse
 from app.modules.query_router import route_question
 from app.modules.topic_router import detect_topic
 from app.hints import get_topic_hints, get_unit_hints
+from app.modules.answer_guard import sanity_warnings
+from app.modules.problem_facts import analyze_problem
 from app.modules.rag import retrieve_premises
 from app.modules.reasoner import reason
 from app.modules.sandbox import execute_sandbox
@@ -77,8 +79,9 @@ def run_pipeline(question: str) -> PhysicsResponse:
     # ─── Step 0: Query Router + Hint Engine ───
     ctx.question_type = route_question(question)
     ctx.topic = detect_topic(question)
+    facts = analyze_problem(question)
     ctx.unit_hints = get_unit_hints(question)
-    ctx.geometry_hints = get_topic_hints(question, topic=ctx.topic)
+    ctx.geometry_hints = get_topic_hints(question, topic=ctx.topic, facts=facts)
     if config.debug:
         print(f"[Step 0] Route: {ctx.question_type}, topic={ctx.topic}")
         print(f"         Unit hints: {len(ctx.unit_hints)} generated")
@@ -149,12 +152,20 @@ def run_pipeline(question: str) -> PhysicsResponse:
     answer_type = "numeric"
     if raw_answer and not any(ch.isdigit() for ch in raw_answer):
         answer_type = "text"
+    warnings = sanity_warnings(
+        question=question,
+        facts=facts,
+        premises=ctx.premises,
+        final_answer=ctx.final_answer,
+        final_unit=ctx.final_unit,
+    )
     ctx.confidence = compute_confidence(
         code_success=sandbox_result.success,
         answer_type=answer_type,
         rag_score=ctx.rag_top_score,
         retries_used=sandbox_result.retries_used,
         code_error=sandbox_result.error,
+        sanity_warnings=warnings,
     )
 
     response = structure_response(ctx)

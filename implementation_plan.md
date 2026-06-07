@@ -4,7 +4,7 @@
 
 | Item | Status |
 |------|--------|
-| **Dataset** | 1354 câu (LD:397, CH:290, NL:190, TD:177, DDT:130, THCB:80, DT:68, CHLT:20) |
+| **Dataset** | 1352 câu (LD:397, CH:290, NL:190, TD:177, DDT:130, THCB:80, DT:68, CHLT:20) |
 | **Router** | `topic_router.py` phân loại bằng **keyword** (không dùng mã ID) → **giữ nguyên** |
 | **RAG** | BM25 in-memory trên `physics_knowledge_base.json` (~80 entries). **Chưa dùng Qdrant, chưa có dense embedding, chưa reranking** |
 | **Model** | Qwen2.5:7B qua Ollama (localhost:11434) |
@@ -58,7 +58,7 @@ Question
 ## Phase 1: Unit Conversion Hint (CHUNG — không thuộc topic nào)
 
 > [!IMPORTANT]
-> Đây là hint **dùng chung** cho tất cả 1354 câu. Xử lý mJ, nJ, kJ, μF, pF, kV/m, cm, mm, v.v.
+> Đây là hint **dùng chung** cho tất cả 1352 câu. Xử lý mJ, nJ, kJ, μF, pF, kV/m, cm, mm, v.v.
 
 ### [NEW] `app/hints/unit_conversion_hint.py`
 
@@ -235,11 +235,69 @@ Bổ sung công thức thiếu:
 
 ---
 
-## Phase 5: Verification
+## Phase 5: LoRA Fine-Tuning cho Reasoner
+
+> [!IMPORTANT]
+> Phase 5 dung fixed hyperparameters truoc, khong chay hyperparameter search tu dong. Dataset phai duoc chia stratified theo tung topic prefix, khong lay theo thu tu dong trong CSV.
+
+### Buoc 5.1: Tao SFT dataset
+- Source: `dataset_2/Physics_Problems_Text_Only.csv`
+- Script: `finetuning/scripts/prepare_sft_dataset.py`
+- Output:
+  - `finetuning/data/processed/train.jsonl`
+  - `finetuning/data/processed/val.jsonl`
+  - `finetuning/data/processed/test.jsonl`
+  - `finetuning/data/processed/manifest.json`
+- Chia tung topic rieng: `LD`, `CH`, `NL`, `TD`, `DDT`, `THCB`, `DT`, `CHLT` -> shuffle seed `42` -> `80/10/10`
+
+### Buoc 5.2: Local smoke test
+- RTX 3050/4050 chi dung de kiem tra CUDA, data prep, va smoke train `max_steps=20`
+- Config: `finetuning/configs/qwen2_5_7b_local_smoke.yaml`
+- Lenh:
+  - `python finetuning/scripts/inspect_gpu.py`
+  - `python finetuning/scripts/train_lora_unsloth.py --config finetuning/configs/qwen2_5_7b_local_smoke.yaml`
+
+### Buoc 5.3: Modal full training
+- Default GPU: Modal `A10`
+- GPU thay the: `L4` re hon/cham hon, `L40S` nhanh hon/VRAM lon hon
+- Config: `finetuning/configs/qwen2_5_7b_modal_a10.yaml`
+- Script: `finetuning/modal/train_lora_modal.py`
+- Lenh smoke: `modal run finetuning/modal/train_lora_modal.py --max-steps 20`
+- Lenh full: `modal run finetuning/modal/train_lora_modal.py`
+
+### Buoc 5.4: Ollama export
+- Train xong chi co LoRA adapter, chua phai model Ollama hoan chinh
+- Flow:
+  - LoRA adapter -> merge vao `Qwen/Qwen2.5-7B-Instruct`
+  - merged model -> GGUF
+  - `ollama create physics-qwen-lora -f Modelfile`
+  - set `.env`: `REASONER_MODEL=physics-qwen-lora`
+- Chi tiet: `finetuning/scripts/export_ollama_gguf.md`
+
+### Tham so mac dinh
+
+```yaml
+num_train_epochs: 3
+learning_rate: 2e-4
+lora_r: 16
+lora_alpha: 32
+max_seq_length: 1024
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 8
+eval_strategy: epoch
+save_strategy: epoch
+load_best_model_at_end: true
+```
+
+---
+
+## Phase 6: Verification
 
 - Chạy eval từng topic: `python evaluate_pipeline.py --mode local --id-prefix LD --report eval_results/LD/2.md`
-- Chạy eval toàn bộ: `python evaluate_pipeline.py --mode local --limit 1354`
-- So sánh accuracy trước/sau cho từng topic
+- Chạy eval toàn bộ: `python evaluate_pipeline.py --mode local --limit 1352`
+- So sánh accuracy trước/sau LoRA cho từng topic
+- Uu tien hard topics: `THCB`, `DT`, `DDT`, `CHLT`
+- Khong de `CH` va `NL` tut manh so voi baseline
 - **Target: ≥ 65% overall**
 
 ---
@@ -252,7 +310,8 @@ graph TD
     P2["Phase 2: Topic Hint Files (_TopicID)"] --> P3
     P3["Phase 3: Knowledge Base Expansion"] --> P4
     P4["Phase 4: RAG Upgrade (Qdrant)"] --> P5
-    P5["Phase 5: Full Dataset Verification"]
+    P5["Phase 5: LoRA Fine-Tuning"] --> P6
+    P6["Phase 6: Full Dataset Verification"]
 ```
 
 | Phase | Ưu tiên | Impact ước tính | Effort |
@@ -261,7 +320,8 @@ graph TD
 | 2 | 🔴 Cao | +100-150 câu (tất cả topics) | Trung bình |
 | 3 | 🟡 Trung bình | Hỗ trợ RAG chính xác hơn | Thấp |
 | 4 | 🟡 Trung bình | +50-100 câu (RAG tốt hơn) | Cao |
-| 5 | 🟢 | Kiểm chứng | Thấp |
+| 5 | 🟡 Trung bình | Fine-tune format, unit, code discipline | Trung bình |
+| 6 | 🟢 | Kiểm chứng | Thấp |
 
 ---
 
@@ -272,4 +332,4 @@ graph TD
 > 2. **CHLT format:** Gold answer là "Yes -" / "No -" — dấu "-" có nghĩa là không có đơn vị?
 > 3. **Có sách giáo khoa / tài liệu PDF** để parse thêm cho Knowledge Base không? Hay chỉ dùng `physics_knowledge_base.json` hiện tại?
 > 4. **GPU capacity:** Máy hiện tại chạy Qwen 7B qua Ollama OK chứ? Có đủ VRAM cho thêm bge-m3 embedding không?
-> 5. **Fine-tuning LoRA:** Tôi đã sửa lại — dataset chỉ có 1354 câu (không phải 5520). Con số 5520 trong `pipeline.md` có lẽ từ mô tả cuộc thi. Fine-tuning sẽ **hoãn lại** sau khi hoàn thành Phase 1-4. Đúng không?
+> 5. **Fine-tuning LoRA:** Phase 5 đã được chốt: dùng fixed config trước, split stratified theo topic, train chính trên Modal A10, local RTX 3050/4050 chỉ smoke test. Sau train phải merge/export GGUF trước khi chạy bằng Ollama.

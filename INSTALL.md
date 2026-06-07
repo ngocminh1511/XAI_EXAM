@@ -15,7 +15,7 @@ Tài liệu này hướng dẫn chi tiết các bước để thiết lập toà
 ---
 
 ## 🛠️ Các Bước Cài Đặt Chi Tiết
-
+wsl --install
 ### Bước 1: Cài đặt và cấu hình Ollama (LLM Local)
 1. Truy cập trang chủ [Ollama.com](https://ollama.com/) để tải về và cài đặt Ollama tương ứng với hệ điều hành của bạn.
 2. Sau khi cài đặt xong, mở Terminal (PowerShell hoặc CMD) và kéo mô hình `qwen2.5:7b` (hoặc mô hình bạn cấu hình trong dự án) về máy bằng lệnh:
@@ -92,6 +92,111 @@ Qdrant được dùng làm cơ sở dữ liệu vector lưu trữ các định l
 
 ---
 
+### Bước 5: Chuẩn Bị Phase 5 LoRA Fine-Tuning
+Phase 5 dùng LoRA/QLoRA để fine-tune reasoner. Mặc định project dùng `Qwen/Qwen2.5-7B-Instruct` làm base model và train chính trên Modal GPU `A10`. RTX 3050/4050 local chỉ nên dùng để smoke test.
+
+#### 5.1. Modal-first: không cần train local
+Nếu muốn tiết kiệm thời gian, bạn có thể bỏ toàn bộ bước local smoke test. Trên máy cá nhân chỉ cần cài Modal:
+```powershell
+pip install modal
+modal setup
+```
+
+Sau đó chạy smoke test trực tiếp trên Modal:
+```powershell
+modal run finetuning/modal/train_lora_modal.py --max-steps 20
+```
+
+Nếu smoke test ổn, chạy full train trên Modal A10:
+```powershell
+modal run finetuning/modal/train_lora_modal.py
+```
+
+Script Modal sẽ tự chạy data prep trên remote nếu cần, nên bạn không bắt buộc phải cài `torch`, `unsloth`, `bitsandbytes`, hay chạy train local.
+
+#### 5.2. Tạo dataset SFT chia stratified theo topic (tuỳ chọn local)
+```powershell
+python finetuning/scripts/prepare_sft_dataset.py
+```
+
+Kết quả được ghi vào:
+```text
+finetuning/data/processed/train.jsonl
+finetuning/data/processed/val.jsonl
+finetuning/data/processed/test.jsonl
+finetuning/data/processed/manifest.json
+```
+
+Mỗi topic (`LD`, `CH`, `NL`, `TD`, `DDT`, `THCB`, `DT`, `CHLT`) được shuffle riêng bằng seed `42`, rồi chia `80/10/10`. Không chia theo thứ tự từ trên xuống dưới trong CSV. Bước này chỉ cần chạy local nếu bạn muốn kiểm tra manifest trước khi train.
+
+#### 5.3. Local smoke test (tuỳ chọn)
+Cài dependency fine-tuning trong môi trường riêng nếu muốn thử local:
+```powershell
+pip install torch transformers datasets accelerate peft bitsandbytes unsloth trl
+```
+
+Kiểm tra GPU:
+```powershell
+python finetuning/scripts/inspect_gpu.py
+```
+
+Chạy smoke train 20 steps:
+```powershell
+python finetuning/scripts/train_lora_unsloth.py --config finetuning/configs/qwen2_5_7b_local_smoke.yaml
+```
+
+#### 5.4. Modal training
+Cài và đăng nhập Modal:
+```powershell
+pip install modal
+modal setup
+```
+
+Nếu file `.env` local có `HF_TOKEN=...`, script Modal sẽ tự truyền token đó lên remote dưới dạng Modal Secret tạm. Với model public như `Qwen/Qwen2.5-7B-Instruct`, thường không cần `HF_TOKEN`.
+
+Smoke test trên Modal:
+```powershell
+modal run finetuning/modal/train_lora_modal.py --max-steps 20
+```
+
+Full train trên Modal A10:
+```powershell
+modal run finetuning/modal/train_lora_modal.py
+```
+
+Sau khi train xong, tải kết quả từ Modal Volume:
+```powershell
+modal volume get physics-lora-runs <run_id> .\finetuning\runs\<run_id>
+```
+
+#### 5.5. Export sang Ollama
+Train xong chỉ có LoRA adapter. Để chạy bằng Ollama cần merge và export:
+```text
+LoRA adapter -> merged Qwen2.5-7B -> GGUF -> ollama create physics-qwen-lora
+```
+
+Bước merge nên chạy trên Modal để tránh tải/merge model 7B trên máy local:
+```powershell
+modal run finetuning/modal/merge_lora_modal.py --run-id qwen2_5_7b_lora_20260605_185537
+```
+
+Nếu A10 thiếu bộ nhớ khi merge:
+```powershell
+modal run finetuning/modal/merge_lora_modal.py --run-id qwen2_5_7b_lora_20260605_185537 --gpu L40S
+```
+
+Xem chi tiết tại:
+```text
+finetuning/scripts/export_ollama_gguf.md
+```
+
+Sau khi tạo Ollama model, thêm vào `.env`:
+```ini
+REASONER_MODEL=physics-qwen-lora
+```
+
+---
+
 ## 🏃 Hướng Dẫn Vận Hành & Chạy Thử Nghiệm
 
 ### 1. Chạy Thử Nghiệm Pipeline Đơn Giản
@@ -106,7 +211,7 @@ python test_pipeline.py
 ### 2. Chạy Đánh Giá Độ Chính Xác (Evaluator)
 Các lệnh test trên 20 câu đầu của các topic
 
-python evaluate_pipeline.py --id-prefix LD --start 0 --limit 20 --mode local --output eval_results/LD/qdrant_upgrade_20.jsonl --report eval_results/LD/qdrant_upgrade_20.md --report-misses-only
+python evaluate_pipeline.py --id-prefix LD --start 0 --limit 20 --mode local --output eval_results/LD/qdrant_upgrade_20_v3.jsonl --report eval_results/LD/qdrant_upgrade_20_v3.md --report-misses-only
 
 python evaluate_pipeline.py --id-prefix DT --start 0 --limit 20 --mode local --output eval_results/DT/qdrant_upgrade_20.jsonl --report eval_results/DT/qdrant_upgrade_20.md --report-misses-only
 

@@ -12,6 +12,8 @@ import math
 import re
 from typing import List
 
+from app.modules.problem_facts import ProblemFacts, analyze_problem
+
 
 def _to_meters(value: float, unit: str) -> float:
     unit = unit.lower()
@@ -308,11 +310,69 @@ def _detect_symmetry_zero(question: str) -> List[str]:
 
 # ─── Main entry point ───────────────────────────────────────────────
 
-def analyze(question: str) -> List[str]:
+def _detect_shared_facts(facts: ProblemFacts) -> List[str]:
+    """Convert shared deterministic facts into hard prompt constraints."""
+    hints: List[str] = []
+
+    for point in facts.midpoint_points:
+        hints.append(
+            f"HARD GEOMETRY: point {point} is the midpoint between the two source charges because its distances to both endpoints are equal and each equals half the source separation."
+        )
+        if facts.same_sign_sources and (facts.asks_field or facts.asks_zero_field):
+            hints.append(
+                "HARD SYMMETRY: at the midpoint between two equal same-sign source charges, the net electric field is 0 because equal field vectors point in opposite directions."
+            )
+
+    for fact in facts.collinear_facts:
+        hints.append(f"HARD GEOMETRY: {fact}. Use signed one-dimensional components, not perpendicular-bisector formulas.")
+
+    for fact in facts.right_triangle_facts:
+        hints.append(
+            f"HARD GEOMETRY: {fact}. Combine perpendicular field/force components with sqrt(component1^2 + component2^2)."
+        )
+
+    if facts.mentions_perpendicular_bisector:
+        hints.append(
+            "HARD GEOMETRY: the problem explicitly states perpendicular bisector; use r = sqrt((AB/2)^2 + h^2) and decompose components."
+        )
+
+    if facts.asks_zero_field:
+        hints.append("HARD INTENT: the question asks where electric field E is zero; do not use electric potential V=0 formulas.")
+        if facts.zero_field_region == "between":
+            hints.append(
+                "HARD ZERO-FIELD REGION: for same-sign source charges, the E=0 point lies between the charges, so the two source distances satisfy r1 + r2 = d."
+            )
+        elif facts.zero_field_region == "outside":
+            hints.append(
+                "HARD ZERO-FIELD REGION: for opposite-sign source charges, the E=0 point lies outside the segment on the side of the smaller absolute charge; do not place it between the charges."
+            )
+        if facts.requested_distance_from:
+            hints.append(f"HARD OUTPUT TARGET: return the distance/coordinate measured from {facts.requested_distance_from}, not from the other source charge.")
+
+    if facts.square_center:
+        hints.append(
+            "HARD GEOMETRY: at a square center, distance to each vertex is a*sqrt(2)/2 and all four field vectors must be summed by components."
+        )
+        if facts.square_mixed_sign:
+            hints.append(
+                "HARD SQUARE SIGN CHECK: mixed positive and negative charges at square vertices do not automatically cancel; identical opposite vertices can cancel only when their vector directions are opposite."
+            )
+
+    if facts.asks_symbolic:
+        hints.append(
+            "HARD SYMBOLIC: the problem contains symbolic quantities. Do not substitute a=1, q=1, h=1, or any placeholder number; return a string expression in the given symbols."
+        )
+
+    return hints
+
+
+def analyze(question: str, facts: ProblemFacts | None = None) -> List[str]:
     """Return all applicable Coulomb/E-field hints for the question."""
+    facts = facts or analyze_problem(question)
     distances = _extract_distances(question)
     hints: List[str] = []
 
+    hints.extend(_detect_shared_facts(facts))
     hints.extend(_detect_right_triangle(question, distances))
     hints.extend(_detect_equilateral(question))
     hints.extend(_detect_isosceles_right(question))

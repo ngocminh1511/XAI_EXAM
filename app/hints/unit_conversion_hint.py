@@ -98,6 +98,29 @@ def _detect_output_unit(question: str) -> List[str]:
         m = re.search(pat, question, re.IGNORECASE)
         if m:
             unit = m.group(1)
+            context_before = question[max(0, m.start() - 60):m.start()].lower()
+            input_unit_contexts = [
+                "side length",
+                "with side",
+                "distance",
+                "charge",
+                "magnitude",
+                "capacitance",
+                "inductance",
+                "resistance",
+                "q ",
+                "q1",
+                "q2",
+                " q",
+                " a",
+                " h",
+            ]
+            explicit_output_context = any(
+                marker in context_before
+                for marker in ["answer", "calculate", "find", "determine", "unit", "in ", "theo"]
+            )
+            if not explicit_output_context and any(marker in context_before for marker in input_unit_contexts):
+                continue
             # Find matching factor in _UNIT_TABLE to generate math conversion formula
             factor = 1.0
             for _, u_disp, _, u_fac in _UNIT_TABLE:

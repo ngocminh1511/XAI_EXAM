@@ -20,6 +20,8 @@ CRITICAL RULES:
 11. Use constants from the retrieved premises; for Coulomb problems use k = 9e9 unless the problem states otherwise.
 12. Name variables in your Python code using simple standard symbols (e.g. C, U, L, I, q1, r) instead of suffixing them with units (like C_muF). This avoids incorrect double-conversions when applying formulas.
 13. Never do double conversions. If you already converted an input value to SI (e.g. C = 20e-6), do not divide or multiply it again inside the formula. Use it directly as the standard SI symbol.
+14. For symbolic problems with variables such as a, q, h, k, epsilon and no numeric values for those variables, do NOT assign placeholder numbers like a=1 or q=1. Set `answer` to a string expression and set the correct unit string.
+15. Treat HARD GEOMETRY, HARD INTENT, HARD ZERO-FIELD REGION, HARD OUTPUT TARGET, HARD SQUARE SIGN CHECK, and HARD SYMBOLIC hints as constraints. If a retrieved premise conflicts with a HARD hint, ignore that premise.
 
 You MUST follow this EXACT output format:
 

@@ -6,6 +6,7 @@ Extracts `answer` and `unit` variables from the executed code.
 Includes retry mechanism with error feedback.
 """
 import math
+import re
 import signal
 import sys
 import traceback
@@ -50,8 +51,10 @@ def _validate_code(code: str) -> str | None:
         return "Empty code block"
 
     # Check for required output variables
-    if "answer" not in code:
+    if not re.search(r"\banswer\s*=", code):
         return "Code must define an 'answer' variable"
+    if not re.search(r"\bunit\s*=", code):
+        return "Code must define a 'unit' variable"
 
     # Block dangerous operations
     dangerous = [

@@ -75,6 +75,7 @@ class AppConfig:
         self.use_redis = os.getenv("USE_REDIS", str(self.use_redis)).lower() == "true"
         self.qdrant_host = os.getenv("QDRANT_HOST", self.qdrant_host)
         self.redis_host = os.getenv("REDIS_HOST", self.redis_host)
+        self.reasoner_model = os.getenv("REASONER_MODEL", self.reasoner_model)
 
 
 # Singleton config

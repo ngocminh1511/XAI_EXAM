@@ -25,6 +25,7 @@ from app.pipeline import run_pipeline
 ROOT = Path(__file__).resolve().parent
 DEFAULT_DATASET = ROOT / "dataset_2" / "Physics_Problems_Text_Only.csv"
 KNOWN_ID_PREFIXES = ["CHLT", "THCB", "DDT", "LD", "CH", "NL", "TD", "DT"]
+SUPERSCRIPT_MAP = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺", "0123456789-+")
 
 
 UNIT_FACTORS = {
@@ -63,10 +64,16 @@ UNIT_FACTORS = {
     # current
     "A": ("current", 1.0),
     "mA": ("current", 1e-3),
+    "μA": ("current", 1e-6),
+    "uA": ("current", 1e-6),
     # resistance
     "Ω": ("resistance", 1.0),
     "ohm": ("resistance", 1.0),
     "kΩ": ("resistance", 1e3),
+    # length
+    "m": ("length", 1.0),
+    "cm": ("length", 1e-2),
+    "mm": ("length", 1e-3),
     # power
     "W": ("power", 1.0),
     "kW": ("power", 1e3),
@@ -76,6 +83,8 @@ UNIT_FACTORS = {
     # inductance
     "H": ("inductance", 1.0),
     "mH": ("inductance", 1e-3),
+    "μH": ("inductance", 1e-6),
+    "uH": ("inductance", 1e-6),
     # magnetic field
     "T": ("magnetic_field", 1.0),
     "mT": ("magnetic_field", 1e-3),
@@ -89,6 +98,15 @@ UNIT_FACTORS = {
     "J/m3": ("energy_density", 1.0),
     # turn density
     "turns/m": ("turn_density", 1.0),
+    # mass
+    "kg": ("mass", 1.0),
+    "g": ("mass", 1e-3),
+    # angle
+    "rad": ("angle", 1.0),
+    "radian": ("angle", 1.0),
+    "radians": ("angle", 1.0),
+    "degree": ("angle", math.pi / 180.0),
+    "degrees": ("angle", math.pi / 180.0),
 }
 
 
@@ -124,8 +142,9 @@ def normalize_text(text: str) -> str:
 
 def normalize_unit(unit: str) -> str:
     unit = normalize_text(unit)
-    unit = unit.replace("Ohm", "Ω").replace("ohms", "ohm").replace("Ohms", "Ω")
-    unit = unit.replace("uF", "μF").replace("uC", "μC")
+    unit = unit.replace("Ohms", "Ω").replace("Ohm", "Ω").replace("ohms", "ohm")
+    unit = unit.replace("uF", "μF").replace("uC", "μC").replace("uJ", "μJ")
+    unit = unit.replace("uA", "μA").replace("uH", "μH").replace("uT", "μT")
     return unit
 
 
@@ -134,10 +153,32 @@ def parse_numeric(value: str) -> Optional[float]:
     if not value:
         return None
 
-    cleaned = value
+    cleaned = value.translate(SUPERSCRIPT_MAP)
     cleaned = cleaned.replace(",", "")
     cleaned = cleaned.replace("×", "x")
     cleaned = cleaned.replace("·", "*")
+    cleaned = cleaned.replace("\\times", "x")
+    cleaned = re.sub(r"\^\{([+-]?\d+)\}", r"^\1", cleaned)
+
+    # Textbook shorthand such as "45.10^{5}" means 45 * 10^5, not 45.10.
+    textbook_power = re.fullmatch(r"\s*([+-]?\d+(?:\.\d+)?)\s*\.\s*10\s*\^?\s*([+-]?\d+)\s*", cleaned)
+    if textbook_power:
+        try:
+            return float(textbook_power.group(1)) * (10 ** int(textbook_power.group(2)))
+        except ValueError:
+            pass
+
+    try:
+        expr = cleaned
+        expr = re.sub(r"\\sqrt\{([^}]+)\}", r"math.sqrt(\1)", expr)
+        expr = re.sub(r"sqrt\(([^)]+)\)", r"math.sqrt(\1)", expr)
+        expr = re.sub(r"\\frac\{([^}]+)\}\{([^}]+)\}", r"((\1)/(\2))", expr)
+        expr = re.sub(r"\s*x\s*10\s*\^?\s*([+-]?\d+)", r"*10**\1", expr, flags=re.IGNORECASE)
+        expr = re.sub(r"\s*x\s*", "*", expr)
+        if re.fullmatch(r"[\d\s\.\+\-\*/\(\)mathsqrt]+", expr):
+            return float(eval(expr, {"__builtins__": {}}, {"math": math}))
+    except Exception:
+        pass
 
     # Convert forms like "4.5 x 10^-3" to "4.5e-3".
     cleaned = re.sub(r"([+-]?\d+(?:\.\d+)?)\s*x\s*10\s*\^?\s*([+-]?\d+)", r"\1e\2", cleaned)
@@ -182,6 +223,8 @@ def normalize_qualitative(val: str) -> str:
     val = val.rstrip(" -—.").strip()
     val = val.replace("true", "yes").replace("false", "no")
     val = val.replace("approximately zero", "0").replace("approx zero", "0").replace("nearly zero", "0")
+    val = val.replace("almost zero", "0").replace("negligible", "0")
+    val = re.sub(r"\b(?:factor of two|two times|2x|doubled)\b", "2", val)
     val = re.sub(r"\s+", " ", val)
     return val
 

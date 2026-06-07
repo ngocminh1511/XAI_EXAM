@@ -10,6 +10,7 @@ def compute_confidence(
     rag_score: float = 0.0,
     retries_used: int = 0,
     code_error: str | None = None,
+    sanity_warnings: list[str] | None = None,
 ) -> float:
     """
     Compute a calibrated confidence score.
@@ -42,7 +43,9 @@ def compute_confidence(
     # Penalty for retries
     retry_penalty = retries_used * 0.05
 
-    confidence = base + rag_bonus - retry_penalty
+    sanity_penalty = min(0.45, 0.18 * len(sanity_warnings or []))
+
+    confidence = base + rag_bonus - retry_penalty - sanity_penalty
 
     # Clamp to valid range
     return round(max(0.10, min(1.0, confidence)), 2)

@@ -1,7 +1,21 @@
 import unittest
+import csv
+from pathlib import Path
 
 from app.hints import get_topic_hints, get_unit_hints
+from app.modules.topic_router import detect_topic
 from app.prompts.reasoner_prompt import build_reasoner_prompt
+
+
+DATASET = Path(__file__).resolve().parents[1] / "dataset_2" / "Physics_Problems_Text_Only.csv"
+
+
+def _dataset_question(sample_id: str) -> str:
+    with DATASET.open("r", encoding="utf-8-sig", newline="") as f:
+        for row in csv.DictReader(f):
+            if row["id"] == sample_id:
+                return row["question"]
+    raise AssertionError(f"Missing dataset id {sample_id}")
 
 
 class HintEngineTests(unittest.TestCase):
@@ -86,6 +100,42 @@ class HintEngineTests(unittest.TestCase):
         self.assertTrue(any("QUALITATIVE ANSWER" in hint for hint in ddt))
         self.assertTrue(any("W_C = W_L" in hint for hint in nl))
 
+    def test_router_and_hints_cover_known_regression_groups(self):
+        expected_topics = {
+            "NL001": "energy_oscillation",
+            "NL003": "energy_oscillation",
+            "LD008": "coulomb_force",
+            "LD009": "coulomb_force",
+            "LD015": "coulomb_force",
+            "LD019": "coulomb_force",
+            "DT002": "coulomb_force",
+            "DT003": "coulomb_force",
+            "DT007": "coulomb_force",
+            "THCB066": "dc_circuit",
+            "THCB074": "dc_circuit",
+            "CHLT010": "ac_circuit",
+            "CHLT013": "ac_circuit",
+            "CHLT014": "ac_circuit",
+            "CHLT016": "ac_circuit",
+            "CHLT019": "ac_circuit",
+            "DDT321": "ac_circuit",
+        }
+
+        for sample_id, expected_topic in expected_topics.items():
+            with self.subTest(sample_id=sample_id):
+                question = _dataset_question(sample_id)
+                topic = detect_topic(question)
+                hints = get_topic_hints(question, topic)
+
+                self.assertEqual(topic, expected_topic)
+                self.assertTrue(hints, f"{sample_id} produced no hints")
+
+        for sample_id in ["CHLT010", "CHLT013", "CHLT014", "CHLT016", "CHLT019"]:
+            with self.subTest(yes_no=sample_id):
+                question = _dataset_question(sample_id)
+                hints = get_topic_hints(question, detect_topic(question))
+                self.assertTrue(any("YES/NO" in hint for hint in hints), hints)
+
     def test_reasoner_prompt_separates_unit_and_topic_hints(self):
         prompt = build_reasoner_prompt(
             question="Find energy for C = 100 μF in an LC circuit.",
@@ -102,6 +152,28 @@ class HintEngineTests(unittest.TestCase):
             prompt.index("Unit: 1 μF = 1e-06 F"),
             prompt.index("LC ENERGY CONSERVATION"),
         )
+
+    def test_dt_hard_hints_cover_vector_regressions(self):
+        midpoint_question = _dataset_question("DT001")
+        zero_field_question = _dataset_question("DT025")
+        square_question = _dataset_question("DT020")
+
+        midpoint = get_topic_hints(midpoint_question, detect_topic(midpoint_question))
+        zero_field = get_topic_hints(zero_field_question, detect_topic(zero_field_question))
+        square = get_topic_hints(square_question, detect_topic(square_question))
+
+        self.assertTrue(any("HARD SYMMETRY" in hint for hint in midpoint), midpoint)
+        self.assertTrue(any("V=0" in hint for hint in zero_field), zero_field)
+        self.assertTrue(any("HARD ZERO-FIELD REGION" in hint and "outside" in hint for hint in zero_field), zero_field)
+        self.assertTrue(any("HARD SQUARE SIGN CHECK" in hint for hint in square), square)
+        self.assertTrue(any("HARD SYMBOLIC" in hint for hint in square), square)
+
+    def test_symbolic_input_units_are_not_output_units(self):
+        hints = get_unit_hints(_dataset_question("DT020"))
+        joined = "\n".join(hints)
+
+        self.assertNotIn("OUTPUT UNIT REQUIRED", joined)
+        self.assertNotIn("unit 'm'", joined)
 
 
 if __name__ == "__main__":
