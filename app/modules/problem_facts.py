@@ -44,6 +44,9 @@ class ProblemFacts:
     midpoint_points: list[str] = field(default_factory=list)
     collinear_facts: list[str] = field(default_factory=list)
     right_triangle_facts: list[str] = field(default_factory=list)
+    isosceles_triangle_facts: list[str] = field(default_factory=list)
+    equilateral_triangle_facts: list[str] = field(default_factory=list)
+    perpendicular_bisector_h: float | None = None
     square_center: bool = False
     square_mixed_sign: bool = False
     zero_field_region: str = ""
@@ -251,11 +254,33 @@ def _derive_geometry(facts: ProblemFacts) -> None:
                 f"{s1n}^2 + {s2n}^2 = {s3n}^2; triangle is right-angled at {right_vertex}"
             )
 
+    for base, p1, p2 in [("AB", "AC", "BC"), ("AB", "AM", "BM"), ("AB", "AN", "BN")]:
+        d_base = _distance(distances, base)
+        d_1 = _distance(distances, p1)
+        d_2 = _distance(distances, p2)
+        if d_base is None or d_1 is None or d_2 is None:
+            continue
+            
+        if _close(d_1, d_2) and _close(d_1, d_base):
+            facts.equilateral_triangle_facts.append(f"{p1} = {p2} = {base} = {d_base}; triangle is equilateral")
+            facts.perpendicular_bisector_h = d_1 * math.sqrt(3) / 2
+            facts.mentions_perpendicular_bisector = True
+        elif _close(d_1, d_2):
+            is_right = _close(d_1**2 + d_2**2, d_base**2)
+            if not is_right and not _close(d_1 + d_2, d_base):
+                facts.isosceles_triangle_facts.append(f"{p1} = {p2} = {d_1}; triangle is isosceles")
+                h_sq = d_1**2 - (d_base/2)**2
+                if h_sq > 0:
+                    facts.perpendicular_bisector_h = math.sqrt(h_sq)
+                    facts.mentions_perpendicular_bisector = True
+
     q = facts.question.lower()
     facts.midpoint_points = list(dict.fromkeys(facts.midpoint_points))
     facts.collinear_facts = list(dict.fromkeys(facts.collinear_facts))
     facts.right_triangle_facts = list(dict.fromkeys(facts.right_triangle_facts))
-    facts.mentions_perpendicular_bisector = "perpendicular bisector" in q
+    facts.isosceles_triangle_facts = list(dict.fromkeys(facts.isosceles_triangle_facts))
+    facts.equilateral_triangle_facts = list(dict.fromkeys(facts.equilateral_triangle_facts))
+    facts.mentions_perpendicular_bisector = facts.mentions_perpendicular_bisector or "perpendicular bisector" in q
     facts.square_center = "square" in q and any(term in q for term in ["intersection", "center", "centre", "diagonals"])
     if facts.square_center:
         facts.square_mixed_sign = (

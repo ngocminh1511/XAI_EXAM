@@ -33,6 +33,19 @@ TOPIC_KEYWORDS = {
         ],
         "penalty": ["point where e = 0", "point where v = 0", "instrument error"],
     },
+    "electric_field": {
+        "boost": [
+            "electric field is a vector",
+            "point charge",
+            "v/m",
+            "superposition",
+            "resultant",
+            "midpoint symmetry",
+            "perpendicular bisector",
+            "collinear geometry",
+        ],
+        "penalty": ["force on test charge", "third charge", "coulomb force", "instrument error"],
+    },
     "electric_field_zero": {
         "boost": [
             "point where e = 0",
@@ -87,6 +100,7 @@ TOPIC_KEYWORDS = {
 
 TOPIC_PREFIX_BOOST = {
     "coulomb_force": {"LD", "DT"},
+    "electric_field": {"DT"},
     "electric_field_zero": {"LD", "DT"},
     "electric_potential": {"DT"},
     "capacitor": {"TD", "NL"},

@@ -274,17 +274,22 @@ def _detect_force_direction(question: str) -> List[str]:
     q = question.lower()
     if "force" in q or "acting on" in q:
         hints.append(
-            "Direction rule: same-sign charges REPEL (force pushes away); "
+            "HARD VECTOR LOGIC: Same-sign charges REPEL (force pushes away); "
             "opposite-sign charges ATTRACT (force pulls toward source)."
         )
         hints.append(
-            "For COLLINEAR points: if both forces on q point the SAME direction "
+            "HARD SUPERPOSITION (COLLINEAR): if both vectors point in the SAME direction "
             "→ F_net = F1 + F2. If OPPOSITE directions → F_net = |F1 − F2|."
         )
     if "electric field" in q or "field strength" in q or "cường độ" in q:
         hints.append(
-            "E-field direction: positive charge → field points AWAY; "
-            "negative charge → field points TOWARD the charge."
+            "HARD VECTOR LOGIC: Electric field from a POSITIVE charge points AWAY from it; "
+            "Electric field from a NEGATIVE charge points TOWARD it."
+        )
+        hints.append(
+            "HARD SUPERPOSITION: If two vectors point in SAME direction, ADD them (E_net = E1 + E2). "
+            "If OPPOSITE direction, SUBTRACT them (E_net = |E1 - E2|). "
+            "If at an angle, use VECTOR ADDITION."
         )
     return hints
 
@@ -331,6 +336,21 @@ def _detect_shared_facts(facts: ProblemFacts) -> List[str]:
             f"HARD GEOMETRY: {fact}. Combine perpendicular field/force components with sqrt(component1^2 + component2^2)."
         )
 
+    for fact in facts.isosceles_triangle_facts:
+        hints.append(
+            f"HARD GEOMETRY: {fact}. The point lies on the perpendicular bisector. Combine vectors using projection (cosine)."
+        )
+
+    for fact in facts.equilateral_triangle_facts:
+        hints.append(
+            f"HARD GEOMETRY: {fact}. The angle is 60 degrees. Combine equal vectors using E_net = E1 * sqrt(3) if angle is 60 (repulsion) or E_net = E1 if angle is 120 (attraction)."
+        )
+
+    if facts.perpendicular_bisector_h is not None:
+        hints.append(
+            f"HARD GEOMETRY: The calculated distance from the point to the midpoint of the base is h = {facts.perpendicular_bisector_h:.6g} m. Use this to find the projection cosine."
+        )
+
     if facts.mentions_perpendicular_bisector:
         hints.append(
             "HARD GEOMETRY: the problem explicitly states perpendicular bisector; use r = sqrt((AB/2)^2 + h^2) and decompose components."
@@ -340,11 +360,13 @@ def _detect_shared_facts(facts: ProblemFacts) -> List[str]:
         hints.append("HARD INTENT: the question asks where electric field E is zero; do not use electric potential V=0 formulas.")
         if facts.zero_field_region == "between":
             hints.append(
-                "HARD ZERO-FIELD REGION: for same-sign source charges, the E=0 point lies between the charges, so the two source distances satisfy r1 + r2 = d."
+                "HARD ZERO-FIELD REGION: for same-sign source charges, the E=0 point lies between the charges. "
+                "Solve the equation: sqrt(|q1|)/x = sqrt(|q2|)/(d - x) where d is the distance between charges and x is the distance from q1."
             )
         elif facts.zero_field_region == "outside":
             hints.append(
-                "HARD ZERO-FIELD REGION: for opposite-sign source charges, the E=0 point lies outside the segment on the side of the smaller absolute charge; do not place it between the charges."
+                "HARD ZERO-FIELD REGION: for opposite-sign source charges, the E=0 point lies outside the segment, closer to the charge with smaller absolute magnitude. "
+                "Solve the equation: sqrt(|q1|)/x = sqrt(|q2|)/(x + d) where x is the distance from q1, assuming |q1| < |q2|."
             )
         if facts.requested_distance_from:
             hints.append(f"HARD OUTPUT TARGET: return the distance/coordinate measured from {facts.requested_distance_from}, not from the other source charge.")

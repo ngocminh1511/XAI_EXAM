@@ -17,8 +17,8 @@ def _detect_parallel(question: str) -> List[str]:
             "I_total = I_1 + I_2 + ..."
         )
         hints.append(
-            "Parallel equivalent resistance: 1/R_eq = 1/R1 + 1/R2 + ...; "
-            "for two branches, R_eq = R1*R2/(R1+R2)."
+            "HARD RULE (PARALLEL): To find total current, you MUST compute the equivalent resistance first: "
+            "1/R_eq = 1/R1 + 1/R2 + ... Then use I_total = U / R_eq. Do not just add currents unless you have explicitly calculated them."
         )
     return hints
 

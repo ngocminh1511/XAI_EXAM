@@ -28,6 +28,7 @@ def get_topic_hints(question: str, topic: str, facts: ProblemFacts | None = None
 
     topic_analyzers = {
         "coulomb_force": "app.hints.hint_coulomb_force_LD",
+        "electric_field": "app.hints.hint_coulomb_force_LD",
         "electric_field_zero": "app.hints.hint_coulomb_force_LD",
         "electric_potential": "app.hints.hint_electric_field_DT",
         "capacitor": "app.hints.hint_capacitor_TD",

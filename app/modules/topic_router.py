@@ -9,6 +9,7 @@ from typing import Literal
 
 Topic = Literal[
     "coulomb_force",
+    "electric_field",
     "electric_field_zero",
     "electric_potential",
     "capacitor",
@@ -68,8 +69,8 @@ def detect_topic(question: str) -> Topic:
         return "coulomb_force"
 
     electric_field_terms = ["electric field", "field strength", "resultant field", "net field", " v/m", " n/c"]
-    if any(term in q for term in coulomb_terms) and any(term in q for term in electric_field_terms):
-        return "coulomb_force"
+    if any(term in q for term in electric_field_terms):
+        return "electric_field"
 
     pure_vector_force_terms = [
         "two electric forces",

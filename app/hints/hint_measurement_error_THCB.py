@@ -88,10 +88,11 @@ def _detect_error_propagation(question: str) -> List[str]:
 def _detect_percentage(question: str) -> List[str]:
     hints = []
     q = question.lower()
-    if any(kw in q for kw in ["percentage", "percent", "phần trăm", "%"]):
+    if any(kw in q for kw in ["percentage", "percent", "phần trăm", "%", "relative error", "sai số tương đối"]):
         hints.append(
-            "Percentage error: δ% = (Δ / |X|) × 100%. "
-            "Make sure to multiply by 100 when the question asks for '%'."
+            "HARD RULE: If the question asks for 'relative error' or 'percentage error' or '%', "
+            "you MUST multiply the final relative error value by 100 before returning it. "
+            "For example, if δ = 0.0421, output 4.21."
         )
     return hints
 

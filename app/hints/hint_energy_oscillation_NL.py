@@ -19,11 +19,12 @@ def _detect_energy_conservation(question: str) -> List[str]:
     if any(kw in q for kw in ["lc", "oscillation", "dao động",
                                "energy", "năng lượng"]):
         hints.append(
-            "LC ENERGY CONSERVATION: W_total = W_C + W_L = ½CU_max² = ½LI_max² "
-            "= constant (no resistance assumed)."
+            "HARD RULE: LC ENERGY CONSERVATION. Total energy W_total is CONSTANT. "
+            "Equation: W_total = 0.5 * C * U_max^2 = 0.5 * L * I_max^2 = 0.5 * C * u^2 + 0.5 * L * i^2. "
+            "Use this exact equation to relate instantaneous values (u, i) with maximum values (U_max, I_max)."
         )
         hints.append(
-            "W_C = ½CU² = Q²/(2C). W_L = ½LI²."
+            "Energy components: W_C = 0.5 * C * u^2 = q^2 / (2*C). W_L = 0.5 * L * i^2."
         )
     return hints
 

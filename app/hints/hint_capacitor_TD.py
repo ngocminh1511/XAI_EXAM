@@ -35,15 +35,15 @@ def _detect_connected_disconnected(question: str) -> List[str]:
 
     if is_disconnected and not is_connected:
         hints.append(
-            "SOURCE STATE: Capacitor is DISCONNECTED from the source. "
-            "→ CHARGE Q remains CONSTANT. "
-            "If C changes: U_new = Q/C_new, W_new = Q²/(2·C_new)."
+            "HARD RULE: Capacitor is DISCONNECTED from the source. "
+            "CHARGE Q is CONSTANT. Do NOT assume U is constant. "
+            "If distance or dielectric changes, use Q=constant to find new U (U_new = Q/C_new) and new energy W_new = Q^2/(2*C_new)."
         )
     elif is_connected:
         hints.append(
-            "SOURCE STATE: Capacitor REMAINS CONNECTED to the source. "
-            "→ VOLTAGE U remains CONSTANT. "
-            "If C changes: Q_new = C_new·U, W_new = ½·C_new·U²."
+            "HARD RULE: Capacitor is CONNECTED to the source. "
+            "VOLTAGE U is CONSTANT. Do NOT calculate a new U; the new potential difference is exactly the same as the original. "
+            "If C changes, Q will change (Q_new = C_new*U)."
         )
 
     return hints
