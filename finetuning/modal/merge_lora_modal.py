@@ -44,6 +44,8 @@ if os.getenv("HF_TOKEN"):
 def ignore_upload(path) -> bool:
     """Keep Modal snapshots stable and avoid uploading generated artifacts."""
     parts = set(path.parts)
+    if any(part.startswith(".venv") for part in path.parts):
+        return True
     if parts & IGNORED_UPLOAD_PARTS:
         return True
     if path.name in IGNORED_UPLOAD_NAMES:
@@ -114,7 +116,7 @@ def merge_impl(run_id: str, base_model: str, output_name: str) -> str:
 )
 def merge_remote_a10(
     run_id: str,
-    base_model: str = "Qwen/Qwen2.5-7B-Instruct",
+    base_model: str = "Qwen/Qwen3-8B",
     output_name: str = "merged",
 ) -> str:
     return merge_impl(run_id=run_id, base_model=base_model, output_name=output_name)
@@ -128,7 +130,21 @@ def merge_remote_a10(
 )
 def merge_remote_l40s(
     run_id: str,
-    base_model: str = "Qwen/Qwen2.5-7B-Instruct",
+    base_model: str = "Qwen/Qwen3-8B",
+    output_name: str = "merged",
+) -> str:
+    return merge_impl(run_id=run_id, base_model=base_model, output_name=output_name)
+
+
+@app.function(
+    gpu="A100",
+    timeout=60 * 60 * 3,
+    volumes={"/cache": hf_cache, "/runs": runs_volume},
+    secrets=modal_secrets,
+)
+def merge_remote_a100(
+    run_id: str,
+    base_model: str = "Qwen/Qwen3-8B",
     output_name: str = "merged",
 ) -> str:
     return merge_impl(run_id=run_id, base_model=base_model, output_name=output_name)
@@ -137,12 +153,18 @@ def merge_remote_l40s(
 @app.local_entrypoint()
 def main(
     run_id: str,
-    base_model: str = "Qwen/Qwen2.5-7B-Instruct",
+    base_model: str = "Qwen/Qwen3-8B",
     output_name: str = "merged",
-    gpu: str = "A10",
+    gpu: str = "A100",
 ) -> None:
     gpu = gpu.upper()
-    if gpu == "L40S":
+    if gpu == "A100":
+        remote_output = merge_remote_a100.remote(
+            run_id=run_id,
+            base_model=base_model,
+            output_name=output_name,
+        )
+    elif gpu == "L40S":
         remote_output = merge_remote_l40s.remote(
             run_id=run_id,
             base_model=base_model,
@@ -155,7 +177,7 @@ def main(
             output_name=output_name,
         )
     else:
-        raise ValueError("Supported merge GPUs are A10 and L40S.")
+        raise ValueError("Supported merge GPUs are A10, L40S, and A100.")
 
     print(f"Done. Merged model directory on Modal volume: {remote_output}")
     print("Download example:")

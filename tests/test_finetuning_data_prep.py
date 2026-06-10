@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 import json
+from collections import Counter
 from pathlib import Path
 
 from finetuning.scripts.prepare_sft_dataset import DEFAULT_DATASET, prepare_dataset
@@ -52,6 +53,47 @@ class FineTuningDataPrepTests(unittest.TestCase):
         self.assertNotIn("HasGoldAnswer", combined_text)
         self.assertNotIn("DatasetId", combined_text)
         self.assertIn("Relevant physics laws/formulas", combined_text)
+
+    def test_geometry_topics_keep_trainable_coverage(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_dir = Path(tmpdir)
+            manifest = prepare_dataset(DEFAULT_DATASET, out_dir, seed=42)
+            records = []
+            for split in ["train", "val", "test"]:
+                records.extend(
+                    json.loads(line)
+                    for line in (out_dir / f"{split}.jsonl").read_text(encoding="utf-8").splitlines()
+                    if line.strip()
+                )
+
+        trainable_by_topic = Counter(
+            record["topic_prefix"] for record in records if record["trainable"]
+        )
+        no_synth_by_topic = Counter(
+            record["topic_prefix"]
+            for record in records
+            if record["code_strategy"] == "no_synthesized_code"
+        )
+
+        self.assertGreaterEqual(trainable_by_topic["DT"], 45)
+        self.assertGreaterEqual(trainable_by_topic["DDT"], 70)
+        self.assertGreaterEqual(trainable_by_topic["LD"], 180)
+        self.assertGreaterEqual(trainable_by_topic["CH"], 200)
+        self.assertGreaterEqual(trainable_by_topic["TD"], 125)
+        self.assertGreaterEqual(trainable_by_topic["NL"], 150)
+        self.assertGreaterEqual(trainable_by_topic["THCB"], 56)
+        self.assertEqual(no_synth_by_topic["DT"], 0)
+        self.assertEqual(no_synth_by_topic["LD"], 0)
+        self.assertEqual(no_synth_by_topic["DDT"], 0)
+        self.assertEqual(manifest["topics"]["DT"]["trainable"], trainable_by_topic["DT"])
+        self.assertLess(
+            sum(1 for record in records if record["trainable"] and record["prompt_text"] == record["text"]),
+            1,
+        )
+
+        for record in records:
+            self.assertIn("subtype", record)
+            self.assertIn("split_group", record)
 
 
 if __name__ == "__main__":

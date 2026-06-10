@@ -39,7 +39,7 @@ def merge_lora(base_model: str, adapter_dir: Path, output_dir: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Merge LoRA adapter into base weights.")
-    parser.add_argument("--base-model", default="Qwen/Qwen2.5-7B-Instruct")
+    parser.add_argument("--base-model", default="Qwen/Qwen3-8B")
     parser.add_argument("--adapter-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     return parser.parse_args()

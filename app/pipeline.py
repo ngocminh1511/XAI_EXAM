@@ -21,6 +21,7 @@ from app.modules.reasoner import reason
 from app.modules.sandbox import execute_sandbox
 from app.modules.normalizer import normalize_answer
 from app.modules.confidence import compute_confidence
+from app.modules.deterministic_solver import solve_deterministic
 from app.modules.structurer import structure_response
 
 
@@ -143,6 +144,9 @@ def run_pipeline(question: str) -> PhysicsResponse:
         raw_unit = reasoner_output.raw_unit or ""
 
     final_answer, final_unit = normalize_answer(raw_answer, raw_unit)
+    deterministic_result = solve_deterministic(question, topic=ctx.topic)
+    if deterministic_result is not None:
+        final_answer, final_unit = normalize_answer(deterministic_result.answer, deterministic_result.unit)
     ctx.final_answer = final_answer
     ctx.final_unit = final_unit
     if config.debug:

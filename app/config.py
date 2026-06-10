@@ -45,12 +45,12 @@ class AppConfig:
     # reasoner_model: str = "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
     # reasoner_model: str = "deepseek-r1:7b"
     reasoner_model: str = "qwen2.5:7b"
-    reasoner_max_tokens: int = 1024
+    reasoner_max_tokens: int = 512
     reasoner_temperature: float = 0.1
 
     # --- Structurer LLM ---
     structurer_model: str = "Qwen/Qwen2.5-7B-Instruct"
-    structurer_max_tokens: int = 512
+    structurer_max_tokens: int = 256
     structurer_temperature: float = 0.0
 
     # --- Code Sandbox ---
@@ -76,6 +76,11 @@ class AppConfig:
         self.qdrant_host = os.getenv("QDRANT_HOST", self.qdrant_host)
         self.redis_host = os.getenv("REDIS_HOST", self.redis_host)
         self.reasoner_model = os.getenv("REASONER_MODEL", self.reasoner_model)
+        self.reasoner_max_tokens = int(os.getenv("REASONER_MAX_TOKENS", self.reasoner_max_tokens))
+        self.reasoner_temperature = float(os.getenv("REASONER_TEMPERATURE", self.reasoner_temperature))
+        self.structurer_model = os.getenv("STRUCTURER_MODEL", self.structurer_model)
+        self.structurer_max_tokens = int(os.getenv("STRUCTURER_MAX_TOKENS", self.structurer_max_tokens))
+        self.structurer_temperature = float(os.getenv("STRUCTURER_TEMPERATURE", self.structurer_temperature))
 
 
 # Singleton config

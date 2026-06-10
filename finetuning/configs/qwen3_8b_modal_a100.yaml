@@ -1,10 +1,10 @@
-model_name: Qwen/Qwen2.5-7B-Instruct
-dataset_path: dataset_2/Physics_Problems_Text_Only.csv
-processed_dir: finetuning/data/processed
-train_file: finetuning/data/processed/train.jsonl
-val_file: finetuning/data/processed/val.jsonl
-test_file: finetuning/data/processed/test.jsonl
-output_dir: finetuning/runs/qwen2_5_7b_modal_a10
+model_name: Qwen/Qwen3-8B
+dataset_path: dataset_2/physic_version_2.csv
+processed_dir: finetuning/data/processed_v2
+train_file: finetuning/data/processed_v2/train.jsonl
+val_file: finetuning/data/processed_v2/val.jsonl
+test_file: finetuning/data/processed_v2/test.jsonl
+output_dir: finetuning/runs/qwen3_8b_lora_v3_a100
 
 seed: 42
 train_ratio: 0.8

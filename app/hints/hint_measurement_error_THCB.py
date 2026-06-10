@@ -91,6 +91,7 @@ def _detect_percentage(question: str) -> List[str]:
     if any(kw in q for kw in ["percentage", "percent", "phần trăm", "%", "relative error", "sai số tương đối"]):
         hints.append(
             "HARD RULE: If the question asks for 'relative error' or 'percentage error' or '%', "
+            "Percentage error = relative error * 100. "
             "you MUST multiply the final relative error value by 100 before returning it. "
             "For example, if δ = 0.0421, output 4.21."
         )

@@ -1,3 +1,4 @@
+python evaluate_pipeline.py --id-prefix DT --mode local --limit 5 --output eval_results/DT/qwen3_8b_5.jsonl --report eval_results/DT/qwen3_8b_5.md
 => Sử dụng khi muốn cập nhật lại knowledge base
 $env:USE_QDRANT="true"
 $env:QDRANT_HOST="localhost"

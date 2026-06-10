@@ -69,6 +69,32 @@ def detect_topic(question: str) -> Topic:
         return "coulomb_force"
 
     electric_field_terms = ["electric field", "field strength", "resultant field", "net field", " v/m", " n/c"]
+    geometry_vector_terms = [
+        " at m",
+        " at n",
+        " at c",
+        " point m",
+        " point n",
+        " point c",
+        " midpoint",
+        "mid-point",
+        "perpendicular",
+        "triangle",
+        "square",
+        " na =",
+        " nb =",
+        " ma =",
+        " mb =",
+        " ac =",
+        " bc =",
+        " ab =",
+    ]
+    if (
+        any(term in q for term in electric_field_terms)
+        and any(term in q for term in coulomb_terms)
+        and any(term in q for term in geometry_vector_terms)
+    ):
+        return "coulomb_force"
     if any(term in q for term in electric_field_terms):
         return "electric_field"
 

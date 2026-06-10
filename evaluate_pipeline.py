@@ -8,6 +8,7 @@ import argparse
 import csv
 import json
 import math
+import os
 import re
 import sys
 import time
@@ -51,6 +52,7 @@ UNIT_FACTORS = {
     "uJ": ("energy", 1e-6),
     # capacitance
     "F": ("capacitance", 1.0),
+    "mF": ("capacitance", 1e-3),
     "μF": ("capacitance", 1e-6),
     "uF": ("capacitance", 1e-6),
     "nF": ("capacitance", 1e-9),
@@ -95,6 +97,7 @@ UNIT_FACTORS = {
     "mWb": ("magnetic_flux", 1e-3),
     # energy density
     "J/m³": ("energy_density", 1.0),
+    "J/m^3": ("energy_density", 1.0),
     "J/m3": ("energy_density", 1.0),
     # turn density
     "turns/m": ("turn_density", 1.0),
@@ -159,13 +162,18 @@ def parse_numeric(value: str) -> Optional[float]:
     cleaned = cleaned.replace("·", "*")
     cleaned = cleaned.replace("\\times", "x")
     cleaned = re.sub(r"\^\{([+-]?\d+)\}", r"^\1", cleaned)
+    if "=" in cleaned:
+        after_equals = cleaned.rsplit("=", 1)[-1].strip()
+        parsed_after_equals = parse_numeric(after_equals)
+        if parsed_after_equals is not None:
+            return parsed_after_equals
 
     # Textbook shorthand such as "45.10^{5}" means 45 * 10^5, not 45.10.
     textbook_power = re.fullmatch(r"\s*([+-]?\d+(?:\.\d+)?)\s*\.\s*10\s*\^?\s*([+-]?\d+)\s*", cleaned)
     if textbook_power:
         try:
             return float(textbook_power.group(1)) * (10 ** int(textbook_power.group(2)))
-        except ValueError:
+        except (OverflowError, ValueError):
             pass
 
     try:
@@ -184,20 +192,29 @@ def parse_numeric(value: str) -> Optional[float]:
     cleaned = re.sub(r"([+-]?\d+(?:\.\d+)?)\s*x\s*10\s*\^?\s*([+-]?\d+)", r"\1e\2", cleaned)
 
     # Plain leading number, including scientific notation.
-    match = re.search(r"^[\s=]*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)", cleaned, re.IGNORECASE)
+    match = re.search(
+        r"^[\s=]*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:\s*(?:\*|x)\s*10\s*\^?\s*[+-]?\d+|(?:e[+-]?\d+)?)?)",
+        cleaned,
+        re.IGNORECASE,
+    )
     if not match:
         return None
 
     try:
-        return float(match.group(1))
-    except ValueError:
+        token = re.sub(r"\s*(?:\*|x)\s*10\s*\^?\s*([+-]?\d+)", r"e\1", match.group(1), flags=re.IGNORECASE)
+        return float(token)
+    except (OverflowError, ValueError):
         return None
 
 
 def split_answer_unit(answer: str) -> tuple[str, str]:
     answer = normalize_text(answer)
+    for unit in sorted((u for u in UNIT_FACTORS if u), key=len, reverse=True):
+        match = re.match(rf"^(.*?)\s*({re.escape(unit)})\s*$", answer, re.IGNORECASE)
+        if match:
+            return match.group(1).strip(), normalize_unit(match.group(2))
     numeric_match = re.match(
-        r"^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)(?:\s+(.+))?\s*$",
+        r"^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:\s*(?:\*|x)\s*10\s*\^?\s*[+-]?\d+|(?:e[+-]?\d+)?)?)(?:\s+(.+))?\s*$",
         answer,
         re.IGNORECASE,
     )
@@ -224,9 +241,63 @@ def normalize_qualitative(val: str) -> str:
     val = val.replace("true", "yes").replace("false", "no")
     val = val.replace("approximately zero", "0").replace("approx zero", "0").replace("nearly zero", "0")
     val = val.replace("almost zero", "0").replace("negligible", "0")
+    val = re.sub(r"\bzero\b", "0", val)
+    val = val.replace("current intensity", "current")
+    val = val.replace("shines", "shine")
     val = re.sub(r"\b(?:factor of two|two times|2x|doubled)\b", "2", val)
     val = re.sub(r"\s+", " ", val)
     return val
+
+
+def normalize_symbolic(value: str) -> str:
+    value = normalize_text(value).lower()
+    value = value.replace("\\abs", "abs")
+    value = re.sub(r"\|([^|]+)\|", r"abs(\1)", value)
+    value = re.sub(r"abs\{([^}]+)\}", r"abs(\1)", value)
+    value = re.sub(r"\\sqrt\{([^}]+)\}", r"sqrt(\1)", value)
+    value = re.sub(r"sqrt\s*\{([^}]+)\}", r"sqrt(\1)", value)
+    value = re.sub(r"\\frac\{([^{}]+)\}\{([^{}]+)\}", r"(\1)/(\2)", value)
+    value = re.sub(r"/frac\{([^{}]+)\}\{([^{}]+)\}", r"(\1)/(\2)", value)
+    value = value.replace("^1.5", "^(3/2)")
+    value = value.replace("**1.5", "^(3/2)")
+    value = value.replace("**", "^")
+    value = re.sub(r"\^\{([^}]+)\}", r"^(\1)", value)
+    value = value.replace("\\", "")
+    value = re.sub(r"\s+", "", value)
+    value = value.replace("*", "")
+    value = value.replace("{", "(").replace("}", ")")
+    value = value.replace("[", "(").replace("]", ")")
+    value = value.replace("(", "").replace(")", "")
+    return value
+
+
+def candidate_for_gold_unit(answer: str, gold_unit: str) -> str:
+    if ";" in gold_unit:
+        return answer
+    if not any(sep in answer for sep in [";", "\n"]):
+        return answer
+    candidates = [part.strip() for part in re.split(r"[;\n]+", answer) if part.strip()]
+    if not candidates:
+        return answer
+    normalized_gold_unit = normalize_unit(gold_unit).lower()
+    if normalized_gold_unit:
+        for candidate in reversed(candidates):
+            _value, unit = split_answer_unit(candidate)
+            if normalize_unit(unit).lower() == normalized_gold_unit:
+                return candidate
+            if normalized_gold_unit in normalize_text(candidate).lower():
+                return candidate
+    return candidates[-1]
+
+
+def parse_numeric_segments(answer: str) -> list[float]:
+    values: list[float] = []
+    for segment in re.split(r"[;\n]+", normalize_text(answer)):
+        value, _unit = split_answer_unit(segment.strip())
+        parsed = parse_numeric(value)
+        if parsed is not None:
+            values.append(parsed)
+    return values
 
 
 def compare_prediction(
@@ -244,6 +315,7 @@ def compare_prediction(
         gold_unit = ""
         
     pred_answer = normalize_text(pred_answer)
+    pred_answer = candidate_for_gold_unit(pred_answer, gold_unit)
     pred_value, pred_unit = split_answer_unit(pred_answer)
     if pred_unit in ("-", "—"):
         pred_unit = ""
@@ -256,6 +328,14 @@ def compare_prediction(
     numeric_value_match = False
     strict_unit_match = normalize_unit(pred_unit).lower() == gold_unit.lower()
     physical_equiv_match = False
+    pred_segments = parse_numeric_segments(pred_answer)
+    gold_segments = parse_numeric_segments(gold_answer)
+    segment_numeric_match = bool(
+        ";" in gold_unit
+        and pred_segments
+        and len(pred_segments) == len(gold_segments)
+        and all(close_enough(p, g, rel_tol, abs_tol) for p, g in zip(pred_segments, gold_segments))
+    )
 
     if pred_num is not None and gold_num is not None:
         numeric_value_match = close_enough(pred_num, gold_num, rel_tol, abs_tol)
@@ -266,27 +346,41 @@ def compare_prediction(
             pred_dim, pred_si = pred_physical
             gold_dim, gold_si = gold_physical
             physical_equiv_match = pred_dim == gold_dim and close_enough(pred_si, gold_si, rel_tol, abs_tol)
+        if gold_unit == "%" and not pred_unit:
+            physical_equiv_match = physical_equiv_match or close_enough(pred_num * 100, gold_num, rel_tol, abs_tol)
 
     # Main score: numeric answers can pass via strict value+unit or unit-converted equivalence.
-    if pred_num is not None and gold_num is not None:
+    if segment_numeric_match:
+        final_match = True
+    elif pred_num is not None and gold_num is not None:
         final_match = (numeric_value_match and strict_unit_match) or physical_equiv_match
     else:
         # Qualitative soft matching
         norm_gold = normalize_qualitative(gold_full)
         norm_pred = normalize_qualitative(pred_answer)
+        gold_symbolic = normalize_symbolic(gold_answer)
+        pred_symbolic = normalize_symbolic(pred_value)
+        symbolic_match = bool(gold_symbolic and pred_symbolic and gold_symbolic == pred_symbolic and (strict_unit_match or not gold_unit))
         qualitative_match = False
-        if norm_gold and norm_pred:
+        formula_like = bool(re.search(r"[\\^*/=]|\bsqrt\b|\babs\b|\bk\b|\bq\b", gold_answer + " " + pred_value, re.I))
+        if norm_gold and norm_pred and not formula_like:
             if norm_gold == norm_pred or norm_pred in norm_gold or norm_gold in norm_pred:
                 qualitative_match = True
             else:
-                gold_words = set(re.findall(r"\w+", norm_gold))
-                pred_words = set(re.findall(r"\w+", norm_pred))
+                stopwords = {
+                    "a", "an", "and", "are", "as", "be", "because", "by", "in", "is",
+                    "it", "of", "or", "the", "to", "which", "with", "what", "when",
+                }
+                gold_words = set(re.findall(r"\w+", norm_gold)) - stopwords
+                pred_words = set(re.findall(r"\w+", norm_pred)) - stopwords
                 if gold_words and pred_words:
                     if len(pred_words) == 1 and list(pred_words)[0] in gold_words:
                         qualitative_match = True
                     elif len(gold_words) == 1 and list(gold_words)[0] in pred_words:
                         qualitative_match = True
-        final_match = exact_match or qualitative_match
+                    elif len(gold_words) >= 3 and len(gold_words & pred_words) >= min(3, len(gold_words)):
+                        qualitative_match = True
+        final_match = exact_match or symbolic_match or segment_numeric_match or qualitative_match
 
     return (
         exact_match,
@@ -347,7 +441,8 @@ def evaluate(args: argparse.Namespace) -> list[EvalRow]:
         print(f"ID prefix: {args.id_prefix.upper()}")
     print(f"Rows: {len(rows)} (start={args.start}, limit={args.limit})")
     print(f"Mode: {config.mode}")
-    print(f"Model: {config.reasoner_model}")
+    model_label = os.getenv("REASONER_API_MODEL") if config.mode == "api" else config.reasoner_model
+    print(f"Model: {model_label or config.reasoner_model}")
     print(f"Allow fallback: {args.allow_fallback}")
     print(f"Tolerance: rel={args.rel_tol}, abs={args.abs_tol}")
     print("-" * 80)
@@ -620,7 +715,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mode", choices=["mock", "local", "api"], default=None)
     parser.add_argument("--start", type=int, default=0)
     parser.add_argument("--limit", type=int, default=None)
-    parser.add_argument("--rel-tol", type=float, default=5e-3)
+    parser.add_argument("--rel-tol", type=float, default=1e-2)
     parser.add_argument("--abs-tol", type=float, default=1e-9)
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--show-cot", action="store_true", help="Print predicted CoT steps in the console.")

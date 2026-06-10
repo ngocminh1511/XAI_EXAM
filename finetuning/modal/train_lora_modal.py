@@ -47,6 +47,8 @@ if os.getenv("HF_TOKEN"):
 def ignore_upload(path) -> bool:
     """Keep Modal snapshots stable and avoid uploading local/generated files."""
     parts = set(path.parts)
+    if any(part.startswith(".venv") for part in path.parts):
+        return True
     if parts & IGNORED_UPLOAD_PARTS:
         return True
     if path.name in IGNORED_UPLOAD_NAMES:
@@ -88,7 +90,8 @@ def run(cmd: list[str], cwd: PurePosixPath = REMOTE_REPO) -> None:
 
 
 def train_impl(
-    config_path: str = "finetuning/configs/qwen2_5_7b_modal_a10.yaml",
+    config_path: str = "finetuning/configs/qwen3_8b_modal_a100.yaml",
+    dataset_path: str = "dataset_2/physic_version_2.csv",
     run_id: str | None = None,
     max_steps: int | None = None,
 ) -> str:
@@ -97,7 +100,7 @@ def train_impl(
     os.environ["HF_HOME"] = "/cache/huggingface"
     os.environ["HF_HUB_CACHE"] = "/cache/huggingface/hub"
 
-    run_id = run_id or datetime.utcnow().strftime("qwen2_5_7b_lora_%Y%m%d_%H%M%S")
+    run_id = run_id or datetime.utcnow().strftime("qwen3_8b_lora_%Y%m%d_%H%M%S")
     output_dir = REMOTE_RUNS / run_id
     train_file = REMOTE_DATA / "train.jsonl"
     val_file = REMOTE_DATA / "val.jsonl"
@@ -108,7 +111,7 @@ def train_impl(
             sys.executable,
             "finetuning/scripts/prepare_sft_dataset.py",
             "--dataset",
-            "dataset_2/Physics_Problems_Text_Only.csv",
+            dataset_path,
             "--output-dir",
             str(REMOTE_DATA),
             "--seed",
@@ -154,11 +157,12 @@ _TRAIN_VOLUMES = {
     secrets=modal_secrets,
 )
 def train_remote_a10(
-    config_path: str = "finetuning/configs/qwen2_5_7b_modal_a10.yaml",
+    config_path: str = "finetuning/configs/qwen3_8b_modal_a100.yaml",
+    dataset_path: str = "dataset_2/physic_version_2.csv",
     run_id: str | None = None,
     max_steps: int | None = None,
 ) -> str:
-    return train_impl(config_path=config_path, run_id=run_id, max_steps=max_steps)
+    return train_impl(config_path=config_path, dataset_path=dataset_path, run_id=run_id, max_steps=max_steps)
 
 
 @app.function(
@@ -168,11 +172,12 @@ def train_remote_a10(
     secrets=modal_secrets,
 )
 def train_remote_l4(
-    config_path: str = "finetuning/configs/qwen2_5_7b_modal_a10.yaml",
+    config_path: str = "finetuning/configs/qwen3_8b_modal_a100.yaml",
+    dataset_path: str = "dataset_2/physic_version_2.csv",
     run_id: str | None = None,
     max_steps: int | None = None,
 ) -> str:
-    return train_impl(config_path=config_path, run_id=run_id, max_steps=max_steps)
+    return train_impl(config_path=config_path, dataset_path=dataset_path, run_id=run_id, max_steps=max_steps)
 
 
 @app.function(
@@ -182,11 +187,12 @@ def train_remote_l4(
     secrets=modal_secrets,
 )
 def train_remote_l40s(
-    config_path: str = "finetuning/configs/qwen2_5_7b_modal_a10.yaml",
+    config_path: str = "finetuning/configs/qwen3_8b_modal_a100.yaml",
+    dataset_path: str = "dataset_2/physic_version_2.csv",
     run_id: str | None = None,
     max_steps: int | None = None,
 ) -> str:
-    return train_impl(config_path=config_path, run_id=run_id, max_steps=max_steps)
+    return train_impl(config_path=config_path, dataset_path=dataset_path, run_id=run_id, max_steps=max_steps)
 
 
 @app.function(
@@ -196,19 +202,21 @@ def train_remote_l40s(
     secrets=modal_secrets,
 )
 def train_remote_a100(
-    config_path: str = "finetuning/configs/qwen2_5_7b_modal_a10.yaml",
+    config_path: str = "finetuning/configs/qwen3_8b_modal_a100.yaml",
+    dataset_path: str = "dataset_2/physic_version_2.csv",
     run_id: str | None = None,
     max_steps: int | None = None,
 ) -> str:
-    return train_impl(config_path=config_path, run_id=run_id, max_steps=max_steps)
+    return train_impl(config_path=config_path, dataset_path=dataset_path, run_id=run_id, max_steps=max_steps)
 
 
 @app.local_entrypoint()
 def main(
-    config_path: str = "finetuning/configs/qwen2_5_7b_modal_a10.yaml",
+    config_path: str = "finetuning/configs/qwen3_8b_modal_a100.yaml",
+    dataset_path: str = "dataset_2/physic_version_2.csv",
     run_id: str | None = None,
     max_steps: int | None = None,
-    gpu: str = "A10",
+    gpu: str = "A100",
 ) -> None:
     gpu = gpu.upper()
     if gpu == "A100":
@@ -222,7 +230,12 @@ def main(
     else:
         raise ValueError("Supported training GPUs are A10, L4, L40S, and A100.")
 
-    remote_output = train_fn.remote(config_path=config_path, run_id=run_id, max_steps=max_steps)
+    remote_output = train_fn.remote(
+        config_path=config_path,
+        dataset_path=dataset_path,
+        run_id=run_id,
+        max_steps=max_steps,
+    )
     print(f"Done. Output directory on Modal volume: {remote_output}")
     print("Download example:")
     print("modal volume get physics-lora-runs <run_id> ./finetuning/runs/<run_id>")

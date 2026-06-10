@@ -2,8 +2,8 @@
 Train a QLoRA adapter for the Physics AI reasoner.
 
 This script intentionally uses a fixed config file instead of an automatic
-hyperparameter search. Use the local smoke config first, then the Modal A10
-config for the full Phase 5 run.
+hyperparameter search. Use the Modal A100 Qwen3 config for the current
+Phase 5 run, or pass an older config explicitly when comparing baselines.
 """
 from __future__ import annotations
 
@@ -11,12 +11,13 @@ import argparse
 import inspect
 import json
 import os
+import statistics
 from pathlib import Path
 from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_CONFIG = ROOT / "finetuning" / "configs" / "qwen2_5_7b_modal_a10.yaml"
+DEFAULT_CONFIG = ROOT / "finetuning" / "configs" / "qwen3_8b_modal_a100.yaml"
 
 
 def parse_scalar(value: str) -> Any:
@@ -79,7 +80,7 @@ def load_jsonl_dataset(path: Path):
     return dataset
 
 
-def tokenize_dataset(dataset, tokenizer, max_seq_length: int):
+def tokenize_dataset(dataset, tokenizer, max_seq_length: int, split_name: str = "dataset"):
     def tokenize(batch):
         encoded = tokenizer(
             batch["text"],
@@ -105,7 +106,33 @@ def tokenize_dataset(dataset, tokenizer, max_seq_length: int):
         return encoded
 
     keep_columns = dataset.column_names
-    return dataset.map(tokenize, batched=True, remove_columns=keep_columns)
+    tokenized = dataset.map(tokenize, batched=True, remove_columns=keep_columns)
+
+    supervised_counts = [
+        sum(1 for token_id in labels if token_id != -100)
+        for labels in tokenized["labels"]
+    ]
+    zero_supervised = sum(count == 0 for count in supervised_counts)
+    median_supervised = statistics.median(supervised_counts) if supervised_counts else 0
+    min_supervised = min(supervised_counts, default=0)
+    max_supervised = max(supervised_counts, default=0)
+    print(
+        f"[SFT] {split_name}: {len(supervised_counts)} examples, "
+        f"zero-supervised={zero_supervised}, "
+        f"supervised_tokens min/median/max="
+        f"{min_supervised}/{median_supervised}/{max_supervised}"
+    )
+    if supervised_counts and zero_supervised == len(supervised_counts):
+        raise ValueError(
+            f"All {split_name} examples have zero supervised completion tokens. "
+            "Increase max_seq_length or shorten the prompt before training."
+        )
+    if supervised_counts and zero_supervised / len(supervised_counts) > 0.05:
+        raise ValueError(
+            f"{zero_supervised}/{len(supervised_counts)} {split_name} examples have "
+            "zero supervised completion tokens. Increase max_seq_length or shorten prompts."
+        )
+    return tokenized
 
 
 class PromptCompletionCollator:
@@ -206,10 +233,10 @@ def train(config: dict[str, Any]) -> Path:
         random_state=int(config.get("seed", 42)),
     )
 
-    train_dataset = tokenize_dataset(load_jsonl_dataset(train_file), tokenizer, max_seq_length)
+    train_dataset = tokenize_dataset(load_jsonl_dataset(train_file), tokenizer, max_seq_length, split_name="train")
     eval_dataset = None
     if val_file and val_file.exists() and str(config.get("eval_strategy", "epoch")) != "no":
-        eval_dataset = tokenize_dataset(load_jsonl_dataset(val_file), tokenizer, max_seq_length)
+        eval_dataset = tokenize_dataset(load_jsonl_dataset(val_file), tokenizer, max_seq_length, split_name="val")
 
     args_kwargs = training_args_kwargs(config, output_dir)
     args_kwargs["bf16"] = is_bfloat16_supported()
