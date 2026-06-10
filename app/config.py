@@ -29,6 +29,7 @@ class AppConfig:
     # --- Qdrant ---
     qdrant_host: str = "localhost"
     qdrant_port: int = 6333
+    qdrant_api_key: str = ""
     qdrant_collection: str = "physics_kb"
     use_qdrant: bool = False  # False = use in-memory search
 
@@ -74,6 +75,7 @@ class AppConfig:
         self.use_qdrant = os.getenv("USE_QDRANT", str(self.use_qdrant)).lower() == "true"
         self.use_redis = os.getenv("USE_REDIS", str(self.use_redis)).lower() == "true"
         self.qdrant_host = os.getenv("QDRANT_HOST", self.qdrant_host)
+        self.qdrant_api_key = os.getenv("QDRANT_API_KEY", self.qdrant_api_key)
         self.redis_host = os.getenv("REDIS_HOST", self.redis_host)
         self.reasoner_model = os.getenv("REASONER_MODEL", self.reasoner_model)
         self.reasoner_max_tokens = int(os.getenv("REASONER_MAX_TOKENS", self.reasoner_max_tokens))

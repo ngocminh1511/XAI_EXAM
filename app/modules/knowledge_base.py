@@ -281,11 +281,18 @@ class QdrantKB:
             return False
 
         try:
-            self.client = QdrantClient(host=config.qdrant_host, port=config.qdrant_port)
+            if config.qdrant_host.startswith(("http://", "https://")):
+                self.client = QdrantClient(url=config.qdrant_host, api_key=config.qdrant_api_key or None)
+            else:
+                self.client = QdrantClient(
+                    host=config.qdrant_host,
+                    port=config.qdrant_port,
+                    api_key=config.qdrant_api_key or None
+                )
             # Ping client
             self.client.get_collections()
         except Exception as e:
-            print(f"[QdrantKB] Connection failed to {config.qdrant_host}:{config.qdrant_port} ({e}). "
+            print(f"[QdrantKB] Connection failed to {config.qdrant_host} ({e}). "
                   f"Falling back to InMemoryKB.")
             return False
 

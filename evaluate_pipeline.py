@@ -95,6 +95,8 @@ UNIT_FACTORS = {
     # magnetic flux
     "Wb": ("magnetic_flux", 1.0),
     "mWb": ("magnetic_flux", 1e-3),
+    "μWb": ("magnetic_flux", 1e-6),
+    "uWb": ("magnetic_flux", 1e-6),
     # energy density
     "J/m³": ("energy_density", 1.0),
     "J/m^3": ("energy_density", 1.0),
@@ -148,6 +150,7 @@ def normalize_unit(unit: str) -> str:
     unit = unit.replace("Ohms", "Ω").replace("Ohm", "Ω").replace("ohms", "ohm")
     unit = unit.replace("uF", "μF").replace("uC", "μC").replace("uJ", "μJ")
     unit = unit.replace("uA", "μA").replace("uH", "μH").replace("uT", "μT")
+    unit = unit.replace("uWb", "μWb")
     return unit
 
 
@@ -176,10 +179,22 @@ def parse_numeric(value: str) -> Optional[float]:
         except (OverflowError, ValueError):
             pass
 
+    sqrt_power = re.search(
+        r"^\s*([+-]?\d+(?:\.\d+)?)\s*\\{0,2}sqrt\{?([+-]?\d+(?:\.\d+)?)\}?\s*(?:x|\*|\?)\s*10\s*\^?\s*([+-]?\d+)\s*$",
+        cleaned,
+        re.IGNORECASE,
+    )
+    if sqrt_power:
+        try:
+            return float(sqrt_power.group(1)) * math.sqrt(float(sqrt_power.group(2))) * (10 ** int(sqrt_power.group(3)))
+        except (OverflowError, ValueError):
+            pass
+
     try:
         expr = cleaned
         expr = re.sub(r"\\sqrt\{([^}]+)\}", r"math.sqrt(\1)", expr)
         expr = re.sub(r"sqrt\(([^)]+)\)", r"math.sqrt(\1)", expr)
+        expr = re.sub(r"(\d)(math\.sqrt)", r"\1*\2", expr)
         expr = re.sub(r"\\frac\{([^}]+)\}\{([^}]+)\}", r"((\1)/(\2))", expr)
         expr = re.sub(r"\s*x\s*10\s*\^?\s*([+-]?\d+)", r"*10**\1", expr, flags=re.IGNORECASE)
         expr = re.sub(r"\s*x\s*", "*", expr)

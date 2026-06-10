@@ -11,6 +11,9 @@ class EvaluatorNormalizationTests(unittest.TestCase):
     def test_textbook_power_notation_matches(self):
         self.assertEqual(parse_numeric("45.10^{5}"), 4_500_000)
 
+    def test_sqrt_scientific_notation_matches(self):
+        self.assertAlmostEqual(parse_numeric(r"9\sqrt{3} × 10^-27"), 1.5588457268e-26)
+
     def test_unit_converted_length_matches(self):
         result = compare_prediction("0.48 m", "48", "cm", 5e-3, 1e-9)
         self.assertTrue(result[4])
